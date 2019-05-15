@@ -25,9 +25,10 @@ class SentenceEmbedder(object):
         """
         # reload model
         reloaded = torch.load(path)
-        state_dict = reloaded['model']
+        state_dict = reloaded['model']  # 大概原来存的就是一个dict？
 
         # handle models from multi-GPU checkpoints
+        # 这大概是作者的什么evil hack吧==
         if 'checkpoint' in path:
             state_dict = {(k[7:] if k.startswith('module.') else k): v for k, v in state_dict.items()}
 
@@ -43,8 +44,9 @@ class SentenceEmbedder(object):
 
         # build model and reload weights
         model = TransformerModel(pretrain_params, dico, True, True)
+        # 我猜这是因为继承了torch.nn.Module所以自带的一个load参数的方法？
         model.load_state_dict(state_dict)
-        model.eval()
+        model.eval()  # 将模型置于eval状态（why？）
 
         # adding missing parameters
         params.max_batch_size = 0

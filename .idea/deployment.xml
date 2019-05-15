@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" serverName="242">
+    <serverData>
+      <paths name="242">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/data/disk2/private/zhm/201905_XLM/dep" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="243">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home2/private/zhm/201905_XLM/dep" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="zhm@166.111.5.234:22">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>
