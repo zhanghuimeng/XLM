@@ -27,6 +27,14 @@ def process_binarized(data, params):
     dico = data['dico']
     assert ((data['sentences'].dtype == np.uint16) and (len(dico) < 1 << 16) or
             (data['sentences'].dtype == np.int32) and (1 << 16 <= len(dico) < 1 << 31))
+
+    # coverage不知为何可能会挂掉。。
+    def custom_div(x, y):
+        try:
+            return x/y
+        except ZeroDivisionError:
+            return 0
+
     logger.info("%i words (%i unique) in %i sentences. %i unknown words (%i unique) covering %.2f%% of the data." % (
         len(data['sentences']) - len(data['positions']),
         len(dico), len(data['positions']),

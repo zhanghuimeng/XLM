@@ -1,25 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" serverName="242">
+  <component name="PublishConfigData" serverName="zhm@243:22">
     <serverData>
-      <paths name="242">
+      <paths name="zhm@242:22">
         <serverdata>
           <mappings>
-            <mapping deploy="/data/disk2/private/zhm/201905_XLM/dep" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/201905_XLM/dep" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="243">
+      <paths name="zhm@243:22">
         <serverdata>
           <mappings>
-            <mapping deploy="/home2/private/zhm/201905_XLM/dep" local="$PROJECT_DIR$" web="/" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="zhm@166.111.5.234:22">
-        <serverdata>
-          <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/201905_XLM/dep" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

@@ -366,6 +366,12 @@ class TransformerModel(nn.Module):
 
         # embeddings
         tensor = self.embeddings(x)
+        # 似乎会出问题……
+        # print("positions type", positions.type())
+        positions = positions.long()
+        # print("positions type", positions.type())
+        # print("positions=", positions)
+        # print(self.position_embeddings(positions))
         tensor = tensor + self.position_embeddings(positions).expand_as(tensor)
         if langs is not None:
             tensor = tensor + self.lang_embeddings(langs)

@@ -278,6 +278,7 @@ class ParallelDataset(Dataset):
         Sanity checks.
         """
         eos = self.eos_index
+        # 这里看起来会出问题，虽然我不是很懂……
         assert len(self.pos1) == len(self.pos2) > 0                          # check number of sentences
         assert len(self.pos1) == (self.sent1[self.pos1[:, 1]] == eos).sum()  # check sentences indices
         assert len(self.pos2) == (self.sent2[self.pos2[:, 1]] == eos).sum()  # check sentences indices

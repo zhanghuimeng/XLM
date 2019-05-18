@@ -258,9 +258,14 @@ class GLUE:
 
         for splt in ['train', 'valid', 'test']:
 
+            # fix：只有XNLI的是valid，其他的是dev
+            splt2 = splt
+            if not task == "XNLI" and splt == "valid":
+                splt2 = "dev"
+
             # load data and dictionary
-            data1 = load_binarized(os.path.join(dpath, '%s.s1.pth' % splt), params)
-            data2 = load_binarized(os.path.join(dpath, '%s.s2.pth' % splt), params) if self.n_sent == 2 else None
+            data1 = load_binarized(os.path.join(dpath, '%s.s1.pth' % splt2), params)
+            data2 = load_binarized(os.path.join(dpath, '%s.s2.pth' % splt2), params) if self.n_sent == 2 else None
             data['dico'] = data.get('dico', data1['dico'])
 
             # set dictionary parameters
@@ -281,7 +286,7 @@ class GLUE:
             # load labels
             if splt != 'test' or task in ['MRPC']:
                 # read labels from file
-                with open(os.path.join(dpath, '%s.label' % splt), 'r') as f:
+                with open(os.path.join(dpath, '%s.label' % splt2), 'r') as f:
                     lines = [l.rstrip() for l in f]
                 # STS-B task
                 if task == 'STS-B':
@@ -297,6 +302,10 @@ class GLUE:
                     lab2id = {x: i for i, x in enumerate(sorted(set(lines)))}
                     y = [lab2id[x] for x in lines]
                 data[splt]['y'] = torch.LongTensor(y)
+                print("Task=" + task)
+                print("filename:", os.path.join(dpath, '%s.label' % splt))
+                print(splt, splt2)
+                print(len(data[splt]['x']), len(data[splt]['y']))
                 assert len(data[splt]['x']) == len(data[splt]['y'])
 
         # compute weights for weighted training
