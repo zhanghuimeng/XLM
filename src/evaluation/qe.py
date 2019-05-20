@@ -125,6 +125,7 @@ class QE:
         losses = []
         ns = 0  # number of sentences
         nw = 0  # number of words
+        bn = 0  # number of batch
         t = time.time()
 
         iterator = self.get_iterator('train')
@@ -179,15 +180,19 @@ class QE:
             losses.append(loss.item())
 
             # log
-            if ns != 0 and ns % (10 * bs) < bs:
-                logger.info(
-                    "QE - %s-%s - Epoch %s - Train iter %7i - %.1f words/s - %s Loss: %.4f"
-                    % (self.langs[0], self.langs[1], self.epoch, ns, nw / (time.time() - t), 'XE' if self.is_classif else 'MSE', sum(losses) / len(losses))
-                )
-                nw, t = 0, time.time()
-                losses = []
+            # if ns != 0 and ns % (10 * bs) < bs:
+            #     logger.info(
+            #         "QE - %s-%s - Epoch %s - Train iter %7i - %.1f words/s - %s Loss: %.4f"
+            #         % (self.langs[0], self.langs[1], self.epoch, ns, nw / (time.time() - t), 'MSE', sum(losses) / len(losses))
+            #     )
+            #     nw, t = 0, time.time()
+            #     losses = []
+            # 上面这堆我不是很懂，所以换成每个batch输出一次好了
+            logger.info("QE - %s - Epoch %s - Batch %7i - Loss: %.4f" % (params.transfer_task, self.epoch, bn, loss))
 
+            bn += 1
             # epoch size
+            # 为啥这个要我设置。。
             if params.epoch_size != -1 and ns >= params.epoch_size:
                 break
 
@@ -216,7 +221,7 @@ class QE:
                 (sent1, len1), (sent2, len2), idx = batch
                 x, lengths, positions, langs = concat_batches(
                     sent1, len1, lang_id1,
-                    sent2, len2, lang_id1,
+                    sent2, len2, lang_id2,
                     params.pad_index,
                     params.eos_index,
                     reset_positions=False
@@ -236,10 +241,14 @@ class QE:
 
             gold = np.concatenate(gold)
             pred = np.concatenate(pred)
+            print(gold.shape)
+            print(pred.shape)
 
             scores['%s_%s_pearson' % (task, splt)] = pearsonr(pred, gold)[0]
-            scores['%s_%s_rmse' % (task, splt)] = sqrt(mean_squared_error(pred, gold)[0])
-            scores['%s_%s_mae' % (task, splt)] = mean_absolute_error(pred, gold)[0]
+            print(mean_squared_error(pred, gold).shape)
+            print(mean_absolute_error(pred, gold).shape)
+            scores['%s_%s_rmse' % (task, splt)] = sqrt(mean_squared_error(pred, gold))
+            scores['%s_%s_mae' % (task, splt)] = mean_absolute_error(pred, gold)
 
         logger.info("__log__:%s" % json.dumps(scores))
         return scores
