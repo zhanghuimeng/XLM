@@ -176,6 +176,7 @@ def get_optimizer(parameters, s):
         - "sgd,lr=0.01"
         - "adagrad,lr=0.1,lr_decay=0.05"
     """
+    # 上面是对s的形式的描述……（可以有一些参数）
     if "," in s:
         method = s[:s.find(',')]
         optim_params = {}
@@ -217,6 +218,7 @@ def get_optimizer(parameters, s):
         raise Exception('Unknown optimization method: "%s"' % method)
 
     # check that we give good parameters to the optimizer
+    # 好吧，看来这段不是用来检查optimizer是否能optimize前面那些参数的……
     expected_args = inspect.getargspec(optim_fn.__init__)[0]
     assert expected_args[:2] == ['self', 'params']
     if not all(k in expected_args[2:] for k in optim_params.keys()):

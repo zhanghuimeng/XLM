@@ -284,6 +284,7 @@ class GLUE:
                 )
 
             # load labels
+            # 看来data[splt]['x']是数据，data[splt]['y']是label。。
             if splt != 'test' or task in ['MRPC']:
                 # read labels from file
                 with open(os.path.join(dpath, '%s.label' % splt2), 'r') as f:

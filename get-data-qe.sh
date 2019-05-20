@@ -40,16 +40,18 @@ do
   fi
     for splt in train dev test.2017
   do
-      sed '1d' $OUTPATH/$task/${splt}.src | cut -f1 | $REPLACE_UNICODE_PUNCT | \
-        $NORM_PUNC -l en | $REM_NON_PRINT_CHAR > $PROCESSED_PATH/eval/$task/${splt}.x
-      sed '1d' $OUTPATH/$task/${splt}.mt | cut -f2 > $PROCESSED_PATH/eval/$task/${splt}.y
+#      sed '1d' $OUTPATH/$task/${splt}.src | cut -f1 | $REPLACE_UNICODE_PUNCT | \
+#        $NORM_PUNC -l en | $REM_NON_PRINT_CHAR > $PROCESSED_PATH/eval/$task/${splt}.x
+#      sed '1d' $OUTPATH/$task/${splt}.mt | cut -f2 > $PROCESSED_PATH/eval/$task/${splt}.y
       split=$splt
       if [ "$split" == "test.2017" ]; then
         split="test"
       fi
-      paste $PROCESSED_PATH/eval/$task/${splt}.x $PROCESSED_PATH/eval/$task/${splt}.y $OUTPATH/$task/${splt}.hter \
+#      paste $PROCESSED_PATH/eval/$task/${splt}.x $PROCESSED_PATH/eval/$task/${splt}.y $OUTPATH/$task/${splt}.hter \
+#        > $PROCESSED_PATH/eval/$task/${split}.xlm.tsv
+#      rm $PROCESSED_PATH/eval/$task/${splt}.x $PROCESSED_PATH/eval/$task/${splt}.y
+      paste $OUTPATH/$task/${splt}.src $OUTPATH/$task/${splt}.mt $OUTPATH/$task/${splt}.hter \
         > $PROCESSED_PATH/eval/$task/${split}.xlm.tsv
-      rm $PROCESSED_PATH/eval/$task/${splt}.x $PROCESSED_PATH/eval/$task/${splt}.y
   done
 done
 #sed '1d' $OUTPATH/SST-2/test.tsv | cut -f2 | $REPLACE_UNICODE_PUNCT | $NORM_PUNC -l en | $REM_NON_PRINT_CHAR > $OUTPATH/SST-2/test.xlm.tsv
