@@ -6,6 +6,7 @@ vocab_xnli_15
 codes_xnli_15
 
 *.out
+runs/
 *.gz
 *.zip
 

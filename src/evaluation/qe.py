@@ -21,6 +21,8 @@ from ..utils import get_optimizer, concat_batches, truncate, to_cuda
 from ..data.dataset import Dataset, ParallelDataset
 from ..data.loader import load_binarized, set_dico_parameters
 
+from tensorboardX import SummaryWriter
+
 logger = getLogger()
 
 class QE:
@@ -33,6 +35,7 @@ class QE:
         self._embedder = embedder
         self.params = params
         self.scores = scores
+        self.writer = SummaryWriter()
 
     def get_iterator(self, splt):
         """
@@ -94,6 +97,8 @@ class QE:
         )
         if params.fp16:
             self.optimizer = FP16_Optimizer(self.optimizer, dynamic_loss_scale=True)
+
+        self.n_elapsed_batches = 0
 
         # train and evaluate the model
         for epoch in range(params.n_epochs):
@@ -188,11 +193,16 @@ class QE:
             #     nw, t = 0, time.time()
             #     losses = []
             # 上面这堆我不是很懂，所以换成每个batch输出一次好了
+            # 但是我不知道每个epoch有几个batch……
             logger.info("QE - %s - Epoch %s - Batch %7i - Loss: %.4f" % (params.transfer_task, self.epoch, bn, loss))
 
+            # 问题：一个epoch有几个batch？（不知道）epoch是在哪里设置的？（run的时候）
+            self.writer.add_scalars('data/train', {'loss': loss}, self.n_elapsed_batches)
+
             bn += 1
+            self.n_elapsed_batches += 1
             # epoch size
-            # 为啥这个要我设置。。
+            # 为啥这个要我设置（ok，也可以不设置……）
             if params.epoch_size != -1 and ns >= params.epoch_size:
                 break
 
@@ -241,14 +251,18 @@ class QE:
 
             gold = np.concatenate(gold)
             pred = np.concatenate(pred)
-            print(gold.shape)
-            print(pred.shape)
 
-            scores['%s_%s_pearson' % (task, splt)] = pearsonr(pred, gold)[0]
-            print(mean_squared_error(pred, gold).shape)
-            print(mean_absolute_error(pred, gold).shape)
-            scores['%s_%s_rmse' % (task, splt)] = sqrt(mean_squared_error(pred, gold))
-            scores['%s_%s_mae' % (task, splt)] = mean_absolute_error(pred, gold)
+            pearson = pearsonr(pred, gold)[0]
+            rmse = sqrt(mean_squared_error(pred, gold))
+            mae = mean_absolute_error(pred, gold)
+
+            scores['%s_%s_pearson' % (task, splt)] = pearson
+            scores['%s_%s_rmse' % (task, splt)] = rmse
+            scores['%s_%s_mae' % (task, splt)] = mae
+
+            self.writer.add_scalars('data/%s' % splt, {'pearson': pearson,
+                                                      'rmse': rmse,
+                                                      'mae': mae}, self.n_elapsed_batches)
 
         logger.info("__log__:%s" % json.dumps(scores))
         return scores

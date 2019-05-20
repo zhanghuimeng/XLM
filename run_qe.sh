@@ -7,7 +7,7 @@ python qe.py \
     --data_path ./data/processed/XLM15 \
     --qe_task_path QE/WMT17/sentence_level/en_de \
     --transfer_task en-de \
-    --optimizer adam,lr=0.000005 \
+    --optimizer adam,lr=0.00001 \
     --batch_size 10 \
     --n_epochs 250 \
     --epoch_size -1 \
