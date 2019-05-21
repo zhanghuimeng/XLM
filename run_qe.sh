@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-CUDA_VISIBLE_DEVICES="0"
+CUDA_VISIBLE_DEVICES="1"
 python qe.py \
     --exp_name test_qe_mlm_tlm \
     --dump_path ./dumped/ \
@@ -10,6 +10,6 @@ python qe.py \
     --optimizer adam,lr=0.00001 \
     --batch_size 10 \
     --n_epochs 250 \
-    --epoch_size -1 \
-    --max_len 256 \
+    --epoch_size 10 \
+    --max_len 128 \
     --max_vocab 95000

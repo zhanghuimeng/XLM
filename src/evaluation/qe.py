@@ -252,6 +252,10 @@ class QE:
             gold = np.concatenate(gold)
             pred = np.concatenate(pred)
 
+            print(gold)
+            print(pred)
+            print(pearsonr(pred, gold))
+
             pearson = pearsonr(pred, gold)[0]
             rmse = sqrt(mean_squared_error(pred, gold))
             mae = mean_absolute_error(pred, gold)
