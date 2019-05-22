@@ -194,7 +194,7 @@ class QE:
             #     losses = []
             # 上面这堆我不是很懂，所以换成每个batch输出一次好了
             # 但是我不知道每个epoch有几个batch……
-            logger.info("QE - %s - Epoch %s - Batch %7i - Loss: %.4f" % (params.transfer_task, self.epoch, bn, loss))
+            logger.info("QE - %s - Epoch %s - Batch %5i - Loss: %.4f" % (params.transfer_task, self.epoch, bn, loss))
 
             # 问题：一个epoch有几个batch？（不知道）epoch是在哪里设置的？（run的时候）
             self.writer.add_scalars('data/train', {'loss': loss}, self.n_elapsed_batches)
@@ -252,9 +252,9 @@ class QE:
             gold = np.concatenate(gold)
             pred = np.concatenate(pred)
 
-            print(gold)
-            print(pred)
-            print(pearsonr(pred, gold))
+            with open(os.path.join(params.dump_path, 'pred_epoch_%d.hter' % self.epoch), 'w') as f:
+                for h in pred:
+                    f.write('%f\n' % h)
 
             pearson = pearsonr(pred, gold)[0]
             rmse = sqrt(mean_squared_error(pred, gold))
@@ -268,7 +268,8 @@ class QE:
                                                       'rmse': rmse,
                                                       'mae': mae}, self.n_elapsed_batches)
 
-        logger.info("__log__:%s" % json.dumps(scores))
+        # 似乎value是浮点数的时候就不行……
+        logger.info("__log__:%s" % json.dumps(str(scores)))
         return scores
 
     def load_data(self, task):
@@ -312,7 +313,7 @@ class QE:
                 lines = [l.rstrip() for l in f]
             assert all(0 <= float(x) <= 1 for x in lines)
             y = [float(l) for l in lines]
-            data[splt]['y'] = torch.LongTensor(y)
+            data[splt]['y'] = torch.FloatTensor(y)
             assert len(data[splt]['x']) == len(data[splt]['y'])
 
         # compute weights for weighted training

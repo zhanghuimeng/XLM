@@ -45,20 +45,23 @@ fi
 
 # English train set
 echo "*** Preparing English train set ****"
+# 只是把contradictory换成contradiction了而已
 cat $OUTPATH/XNLI-MT-1.0/multinli/multinli.train.en.tsv | sed 's/\tcontradictory/\tcontradiction/g' > $XNLI_PATH/en.train
 
 # validation and test sets
 for lg in ar bg de el en es fr hi ru sw th tr ur vi zh; do
 
   echo "*** Preparing $lg validation and test sets ***"
-  echo -e "premise\thypo\tlabel" > $XNLI_PATH/$lg.valid
+  echo -e "premise\thypo\tlabel" > $XNLI_PATH/$lg.valid  # 先写了三个标题进去
   echo -e "premise\thypo\tlabel" > $XNLI_PATH/$lg.test
 
   # label
+  # 大概是读出语言==lg的行，并把第2列（label）拿出来吧
   awk -v lg=$lg '$1==lg' $XNLI_PATH/xnli.dev.tsv  | cut -f2 > $XNLI_PATH/dev.f2
   awk -v lg=$lg '$1==lg' $XNLI_PATH/xnli.test.tsv | cut -f2 > $XNLI_PATH/test.f2
 
   # premise/hypothesis
+  # 分别读出第7列和第8列（sentence1和sentence2），进行tokenize，lower，remove accent
   awk -v lg=$lg '$1==lg' $XNLI_PATH/xnli.dev.tsv  | cut -f7 | $TOKENIZE $lg | python $LOWER_REMOVE_ACCENT > $XNLI_PATH/dev.f7
   awk -v lg=$lg '$1==lg' $XNLI_PATH/xnli.dev.tsv  | cut -f8 | $TOKENIZE $lg | python $LOWER_REMOVE_ACCENT > $XNLI_PATH/dev.f8
   awk -v lg=$lg '$1==lg' $XNLI_PATH/xnli.test.tsv | cut -f7 | $TOKENIZE $lg | python $LOWER_REMOVE_ACCENT > $XNLI_PATH/test.f7
