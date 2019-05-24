@@ -140,7 +140,7 @@ fi
 if [ "$SRC" == "en" -a "$TGT" == "de" ]; then
   PARA_SRC_VALID=$PARA_PATH/dev/newstest2013-ref.en
   PARA_TGT_VALID=$PARA_PATH/dev/newstest2013-ref.de
-  PARA_SRC_TEST=$PARA_PATH/dev/newstest2016-ende-ref.en
+  PARA_SRC_TEST=$PARA_PATH/dev/newstest2016-deen-ref.en
   PARA_TGT_TEST=$PARA_PATH/dev/newstest2016-ende-ref.de
   # 似乎是http://data.statmt.org/wmt18/translation-task/dev.tgz来的
   # 所以先随便设成这样
@@ -366,20 +366,32 @@ else
   echo "2017/corpus.tc.en.gz already decompressed."
 fi
 if [ ! -f "2017/corpus.tc.de" ]; then
+  echo "Decompressing 2017/corpus.tc.de.gz..."
   gunzip -k 2017/corpus.tc.de.gz
- fi
+else
+  echo "2017/corpus.tc.de.gz already decompressed."
+fi
 if [ ! -f "2018/corpus.tc.en" -o ! -f "2018/corpus.tc.de" ]; then
+  echo "Decompressing 2018/corpus.gz..."
   gunzip -k 2018/corpus.gz
   cut -f2 2018/corpus > 2018/corpus.tc.en
   cut -f1 2018/corpus > 2018/corpus.tc.en
+else
+  echo "2018/corpus.gz already decompressed."
 fi
 
 # concatenate data files
-if ! [[ -f "$SRC_RAW" ]]; then
+if [ ! -d "$PARA_PATH/$SRC/" ]; then
+  mkdir $PARA_PATH/$SRC/
+fi
+if [ ! -d "$PARA_PATH/$TGT/" ]; then
+  mkdir $PARA_PATH/$TGT/
+fi
+if ! [[ -f "$PARA_SRC_RAW" ]]; then
   echo "Concatenating $SRC parallel data..."
   cat "2017/corpus.tc.$SRC" | head -n $N_PARA > $PARA_SRC_RAW
 fi
-if ! [[ -f "$TGT_RAW" ]]; then
+if ! [[ -f "$PARA_TGT_RAW" ]]; then
   echo "Concatenating $TGT parallel data..."
   cat "2017/corpus.tc.$TGT" | head -n $N_PARA > $PARA_TGT_RAW
 fi
@@ -404,14 +416,29 @@ echo "$TGT parallel data tokenized in: $PARA_SRC_TOK"
 
 # BPE
 echo "Applying BPE to parallel training files..."
-$FASTBPE applybpe $PARA_SRC_TRAIN_BPE $PARA_SRC_TOK $BPE_CODES $SRC_VOCAB
-$FASTBPE applybpe $PARA_TGT_TRAIN_BPE $PARA_TGT_TOK $BPE_CODES $TGT_VOCAB
+if [ ! -f "$PARA_SRC_TRAIN_BPE" ]; then
+  echo "Applying $SRC BPE codes..."
+  $FASTBPE applybpe $PARA_SRC_TRAIN_BPE $PARA_SRC_TOK $BPE_CODES $SRC_VOCAB
+fi
+if [ ! -f "$PARA_TGT_TRAIN_BPE" ]; then
+  echo echo "Applying $TGT BPE codes..."
+  $FASTBPE applybpe $PARA_TGT_TRAIN_BPE $PARA_TGT_TOK $BPE_CODES $TGT_VOCAB
+fi
+echo "BPE codes applied to $SRC in: $PARA_SRC_TRAIN_BPE"
+echo "BPE codes applied to $TGT in: $PARA_TGT_TRAIN_BPE"
 
 # Binarize
 echo "Binarizing data..."
-rm -f $PARA_SRC_TRAIN_BPE.pth $PARA_TGT_TRAIN_BPE.pth
-$MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_SRC_TRAIN_BPE
-$MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_TGT_TRAIN_BPE
+if [ ! -f "$PARA_SRC_TRAIN_BPE.pth" ]; then
+  echo "Binarizing $SRC data..."
+  $MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_SRC_TRAIN_BPE
+fi
+if [ ! -f "$PARA_TGT_TRAIN_BPE.pth" ]; then
+  echo "Binarizing $TGT data..."
+  $MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_TGT_TRAIN_BPE
+fi
+echo "$SRC binarized data in: $PARA_SRC_TRAIN_BPE.pth"
+echo "$TGT binarized data in: $PARA_TGT_TRAIN_BPE.pth"
 
 #
 # Download parallel evaluation data
