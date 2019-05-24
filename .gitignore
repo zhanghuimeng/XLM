@@ -20,6 +20,7 @@ tools/stanford-segmenter-**/
 
 .idea/**/XLM.iml
 .idea/**/deployment.xml
+.idea/**/webServers.xml
 .idea/**/misc.xml
 
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio and WebStorm

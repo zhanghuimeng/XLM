@@ -77,6 +77,7 @@ class QE:
 
         # projection layer
         # 若干个dropout + linear层（这个我可以改的……）
+        # 我认识到这个后面应该加一层softmax了……
         self.proj = nn.Sequential(*[
             nn.Dropout(params.dropout),
             nn.Linear(self.embedder.out_dim, params.out_features)
@@ -165,6 +166,7 @@ class QE:
             x, y, lengths = to_cuda(x, y, lengths)
 
             # loss（直接求MSE loss）
+            # 这个取的也是第一列……
             output = self.proj(self.embedder.get_embeddings(x, lengths, positions=None, langs=None))
             # 这个F的写法很神奇，实际上是functional
             # out_feature已经是1了，这里是把多余的维度都去掉了
@@ -252,6 +254,7 @@ class QE:
             gold = np.concatenate(gold)
             pred = np.concatenate(pred)
 
+            # 打印出来好debug==
             with open(os.path.join(params.dump_path, 'pred_epoch_%d.hter' % self.epoch), 'w') as f:
                 for h in pred:
                     f.write('%f\n' % h)

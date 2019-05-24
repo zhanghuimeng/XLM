@@ -10,6 +10,6 @@ python qe.py \
     --optimizer adam,lr=0.00001 \
     --batch_size 10 \
     --n_epochs 250 \
-    --epoch_size 20 \
+    --epoch_size -1 \
     --max_len 256 \
     --max_vocab 95000
