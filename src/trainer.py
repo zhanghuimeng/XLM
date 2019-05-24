@@ -183,6 +183,9 @@ class Trainer(object):
 
         # log speed + stats + learning rate
         logger.info(s_iter + s_speed + s_stat + s_lr)
+        # 范例：
+        # INFO - 05/25/19 00:41:06 - 0:26:52 -     545 -   21.58 sent/s -   831.48 words/s - MLM-de:  7.2272 || MLM-en:  6.7535 - Transformer LR = 1.0000e-04
+        # 时间 - 训练时间 - iter（每5次打印一次）
 
     def get_iterator(self, iter_name, lang1, lang2, stream):
         """

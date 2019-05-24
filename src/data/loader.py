@@ -245,6 +245,7 @@ def check_data_params(params):
     # check languages
     params.langs = params.lgs.split('-') if params.lgs != 'debug' else ['en']
     assert len(params.langs) == len(set(params.langs)) >= 1
+    # print(str(params.langs))
     # assert sorted(params.langs) == params.langs
     params.id2lang = {k: v for k, v in enumerate(sorted(params.langs))}
     params.lang2id = {k: v for v, k in params.id2lang.items()}
@@ -313,7 +314,12 @@ def check_data_params(params):
             if splt != 'train' or (src, tgt) in required_para_train or (tgt, src) in required_para_train
         } for src in params.langs for tgt in params.langs
         if src < tgt and ((src, tgt) in required_para or (tgt, src) in required_para)
+        # 啊，为啥非要src < tgt啊……好吧，我重新预处理……
     }
+    for paths in params.para_dataset.values():
+        for p1, p2 in paths.values():
+            print(p1)
+            print(p2)
     assert all([all([os.path.isfile(p1) and os.path.isfile(p2) for p1, p2 in paths.values()]) for paths in params.para_dataset.values()])
 
     # check that we can evaluate on BLEU
