@@ -166,7 +166,7 @@ def get_parser():
     # reload pretrained embeddings / pretrained model / checkpoint
     parser.add_argument("--reload_emb", type=str, default="",
                         help="Reload pretrained word embeddings")
-    parser.add_argument("--reload_model", type=str, default="",
+    parser.add_argument("reload_model", type=str, default="",
                         help="Reload a pretrained model")
     parser.add_argument("--reload_checkpoint", type=str, default="",
                         help="Reload a checkpoint")

@@ -138,6 +138,7 @@ def load_mono_data(params, data):
             set_dico_parameters(params, data, mono_data['dico'])
 
             # create stream dataset
+            # 这里我需要研究一下有没有shuffle……（取决于get_iterator）
             data['mono_stream'][lang][splt] = StreamDataset(mono_data['sentences'], mono_data['positions'], params)
 
             # if there are several processes on the same machine, we can split the dataset
