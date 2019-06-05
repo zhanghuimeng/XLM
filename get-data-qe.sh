@@ -33,6 +33,8 @@ qe_tasks="QE/WMT17/sentence_level/en_de"
 src_lg="en"
 mt_lg="de"
 
+# 不需要下载数据
+
 for task in $qe_tasks
 do
   if [ ! -d $PROCESSED_PATH/eval/$task ]; then
@@ -46,10 +48,12 @@ do
     if [ "$split" == "test.2017" ]; then
       split="test"
     fi
+    # 进行tokenize，lower，remove accent（和一般的处理方法相同）
     cat $OUTPATH/$task/${splt}.src | $TOKENIZE $src_lg | python $LOWER_REMOVE_ACCENT \
       > $PROCESSED_PATH/eval/$task/${split}.src.tok
     cat $OUTPATH/$task/${splt}.mt | $TOKENIZE $mt_lg | python $LOWER_REMOVE_ACCENT \
       > $PROCESSED_PATH/eval/$task/${split}.mt.tok
+    # 将这三个文件粘到同一个文件的三列中
     paste $PROCESSED_PATH/eval/$task/${split}.src.tok $PROCESSED_PATH/eval/$task/${split}.mt.tok \
       $OUTPATH/$task/${splt}.hter > $PROCESSED_PATH/eval/$task/${split}.xlm.tsv
   done
@@ -60,7 +64,6 @@ wget -c https://dl.fbaipublicfiles.com/XLM/codes_xnli_15 -P $MAIN_PATH
 wget -c https://dl.fbaipublicfiles.com/XLM/vocab_xnli_15 -P $MAIN_PATH
 
 # apply BPE codes and binarize the QE corpora
-
 for task in $qe_tasks
 do
   for splt in train dev test
@@ -68,6 +71,7 @@ do
     FPATH=$PROCESSED_PATH/eval/${task}/${splt}.xlm.tsv
     # 分别读出三列，分别BPE
     cut -f1 $FPATH > ${FPATH}.f1
+    # 生成的是sentence1
     $FASTBPE applybpe $PROCESSED_PATH/eval/$task/${splt}.s1 ${FPATH}.f1 $CODES_PATH
     python preprocess.py $VOCAB_PATH $PROCESSED_PATH/eval/$task/${splt}.s1
     rm ${FPATH}.f1

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-export CUDA_VISIBLE_DEVICES=4
+export CUDA_VISIBLE_DEVICES=7
 python qe.py \
     --exp_name test_qe_mlm_tlm \
     --dump_path ./dumped/ \
@@ -9,6 +9,7 @@ python qe.py \
     --transfer_task en-de \
     --optimizer adam,lr=0.00001 \
     --batch_size 10 \
+    --loss_type mse \
     --n_epochs 250 \
     --epoch_size -1 \
     --max_len 256 \

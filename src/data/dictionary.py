@@ -205,6 +205,7 @@ class Dictionary(object):
             sentences.extend(indexed)
             sentences.append(1)  # EOS index
         f.close()
+        # 为什么是把所有输入串成一个长句子……
 
         # tensorize data
         positions = np.int64(positions)
@@ -226,3 +227,14 @@ class Dictionary(object):
             torch.save(data, bin_path, pickle_protocol=4)
 
         return data
+
+    def to_string(self, sent):
+        '''
+        把一个句子再转回字符串形态。
+        :param sent:
+        :return:
+        '''
+        words = []
+        for id in sent:
+            words.append(self.id2word[id])
+        return ' '.join(words)

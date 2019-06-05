@@ -71,6 +71,7 @@ parser.add_argument("--n_epochs", type=int, default=100,
                     help="Maximum number of epochs")
 parser.add_argument("--epoch_size", type=int, default=-1,
                     help="Epoch size (-1 for full pass over the dataset)")
+parser.add_argument("--loss_type", type=str, default="mse", help="Loss type (only mse and xent now)")
 
 # debug
 parser.add_argument("--debug_train", type=bool_flag, default=False,
@@ -91,6 +92,7 @@ assert os.path.isfile(params.model_path)
 embedder = SentenceEmbedder.reload(params.model_path, params)
 
 # reload langs from pretrained model
+# 我猜这里是语言和id的互相映射（而不是word2id！！）
 params.n_langs = embedder.pretrain_params['n_langs']
 params.id2lang = embedder.pretrain_params['id2lang']
 params.lang2id = embedder.pretrain_params['lang2id']

@@ -13,6 +13,7 @@ import torch.nn.functional as F
 from math import sqrt
 from scipy.stats import spearmanr, pearsonr
 from sklearn.metrics import f1_score, matthews_corrcoef, mean_squared_error, mean_absolute_error
+from scipy.stats import truncnorm
 
 from src.fp16 import network_to_half
 from apex.fp16_utils import FP16_Optimizer
@@ -60,6 +61,7 @@ class QE:
         self.is_classif = False
         # QE的源语言和目标语言
         self.langs = params.transfer_task.split('-')
+        logger.info("self.langs=%s" % str(self.langs))
         assert(len(self.langs) == 2)
 
         # load data
@@ -77,11 +79,27 @@ class QE:
 
         # projection layer
         # 若干个dropout + linear层（这个我可以改的……）
-        # 我认识到这个后面应该加一层softmax了……
+        # linear层应该是默认没有激活函数的
         self.proj = nn.Sequential(*[
             nn.Dropout(params.dropout),
             nn.Linear(self.embedder.out_dim, params.out_features)
         ]).cuda()
+
+        # 重设初始化
+        def truncated_normal(tensor, mean=0.0, std=1.0):
+            size = tensor.shape
+            tmp = tensor.new_empty(size + (4,)).normal_()
+            valid = (tmp < 2) & (tmp > -2)
+            ind = valid.max(-1, keepdim=True)[1]
+            tensor.data.copy_(tmp.gather(-1, ind).squeeze(-1))
+            tensor.data.mul_(std).add_(mean)
+            return tensor
+
+        def init_truncated_normal(m):
+            if type(m) == nn.Linear:
+                m.weight.data = truncated_normal(m.weight.data, std=0.02)
+
+        self.proj.apply(init_truncated_normal)
 
         # float16
         if params.fp16:
@@ -138,6 +156,8 @@ class QE:
         # 我猜QE的语言得自己设置……
         lang_id1 = params.lang2id[self.langs[0]]
         lang_id2 = params.lang2id[self.langs[1]]
+        logger.info("langid1 = %d" % lang_id1)
+        logger.info("langid2 = %d" % lang_id2)
 
         while True:
 
@@ -151,7 +171,8 @@ class QE:
             (sent1, len1), (sent2, len2), idx = batch
             sent1, len1 = truncate(sent1, len1, params.max_len, params.eos_index)
             sent2, len2 = truncate(sent2, len2, params.max_len, params.eos_index)
-            # 不知道要不要分成不同的语言（要）
+            # 不知道要不要分成不同的语言
+            # concat_batches是做什么用的？
             x, lengths, positions, langs = concat_batches(
                 sent1, len1, lang_id1,
                 sent2, len2, lang_id2,
@@ -168,9 +189,18 @@ class QE:
             # loss（直接求MSE loss）
             # 这个取的也是第一列……
             output = self.proj(self.embedder.get_embeddings(x, lengths, positions=None, langs=None))
+
             # 这个F的写法很神奇，实际上是functional
             # out_feature已经是1了，这里是把多余的维度都去掉了
-            loss = F.mse_loss(output.squeeze(1), y.float())
+            if params.loss_type == "mse":
+                output = output.squeeze(1)
+                loss = F.mse_loss(output, y.float())
+            elif params.loss_type == "xent":
+                output = output.squeeze(1)
+                criterion = torch.nn.BCEWithLogitsLoss().cuda()
+                loss = criterion(output, y.float())
+            else:
+                raise ValueError("Unknown loss type: %s" % params.loss_type)
 
             # backward / optimization（这啥）
             self.optimizer.zero_grad()
@@ -200,6 +230,7 @@ class QE:
 
             # 问题：一个epoch有几个batch？（不知道）epoch是在哪里设置的？（run的时候）
             self.writer.add_scalars('data/train', {'loss': loss}, self.n_elapsed_batches)
+            self.writer.add_histogram('data/train/proj', self.proj[1].weight.data, self.n_elapsed_batches)
 
             bn += 1
             self.n_elapsed_batches += 1
@@ -246,6 +277,8 @@ class QE:
                 # forward
                 output = self.proj(self.embedder.get_embeddings(x, lengths, positions, langs))
                 predictions = output.squeeze(1)
+                if params.loss_type == "xent":
+                    predictions = torch.sigmoid(predictions)
 
                 # update statistics
                 pred.append(predictions.cpu().numpy())
@@ -296,6 +329,8 @@ class QE:
             # load data and dictionary
             data1 = load_binarized(os.path.join(dpath, '%s.s1.pth' % splt2), params)
             data2 = load_binarized(os.path.join(dpath, '%s.s2.pth' % splt2), params)
+            # 为什么这里的dict只取了第一个的dict呢？
+            # 不过这两个似乎都是预训练模型的dict
             data['dico'] = data.get('dico', data1['dico'])
 
             # set dictionary parameters
@@ -308,6 +343,16 @@ class QE:
                 data2['sentences'], data2['positions'],
                 params
             )
+
+            # 好像这里输入的时候把所有句子都连一起了？？
+            logger.info("******* %s Examples *******" % splt2)
+            for i in range(5):
+                sent1, sent2 = data[splt]['x'].get_sentence(i)
+                logger.info("Example %d" % i)
+                logger.info("source ids: " + ' '.join([str(x) for x in sent1]))
+                logger.info("source sent: " + data['dico'].to_string(sent1))
+                logger.info("target ids: " + ' '.join([str(x) for x in sent2]))
+                logger.info("target sent: " + data['dico'].to_string(sent2))
 
             # load labels
             # 看来data[splt]['x']是数据，data[splt]['y']是label。。

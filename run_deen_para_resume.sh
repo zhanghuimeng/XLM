@@ -22,4 +22,4 @@ python -m torch.distributed.launch --nproc_per_node=$NGPU train.py \
     --validation_metrics _valid_mlm_ppl \
     --stopping_criterion '_valid_mlm_ppl,10' \
     --exp_id "8rt25m1tjp" \
-    --reload_checkpoint ./dumped/test_deen_mlm_tlm/8rt25m1tjp/checkpoint.pth
+    --reload_checkpoint ./dumped/test_deen_mlm_tlm/8rt25m1tjp/checkpoint.pthres
