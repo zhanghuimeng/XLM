@@ -74,3 +74,47 @@ for i in $(seq 0 1); do
     # Clean
     rm -rf "$TASK1_OUTPATH"/*.tok
 done
+
+# Task1
+echo "*** Preparing Task 2 set ****"
+for i in $(seq 0 1); do
+    lg1="${LG1[$i]}"
+    lg2="${LG2[$i]}"
+
+    # TOKENIZE source sentence
+    if [ $lg1 == "en" ]
+    then
+        cat "$TASK2_PATH/$lg1-$lg2/train/train.src" | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.train.s1.tok"
+        cat "$TASK2_PATH/$lg1-$lg2/dev/dev.src" | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.dev.s1.tok"
+    else
+        cat "$TASK2_PATH/$lg1-$lg2/train/train.src" | $TOKENIZE $lg1 | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.train.s1.tok"
+        cat "$TASK2_PATH/$lg1-$lg2/dev/dev.src" | $TOKENIZE $lg1 | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.dev.s1.tok"
+    fi
+    # Apple BPE and preprocess
+    $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.train.s1" "$TASK2_OUTPATH/$lg1-$lg2.train.s1.tok" $CODES_PATH
+    python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.train.s1"
+    $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.dev.s1" "$TASK2_OUTPATH/$lg1-$lg2.dev.s1.tok" $CODES_PATH
+    python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.dev.s1"
+
+    # TOKENIZE translation sentence
+    if [ $lg2 == "en" ]
+    then
+        cat "$TASK2_PATH/$lg1-$lg2/train/train.mt" | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.train.s2.tok"
+        cat "$TASK2_PATH/$lg1-$lg2/dev/dev.mt" | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.dev.s2.tok"
+    else
+        cat "$TASK2_PATH/$lg1-$lg2/train/train.mt" | $TOKENIZE $lg2 | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.train.s2.tok"
+        cat "$TASK2_PATH/$lg1-$lg2/dev/dev.mt" | $TOKENIZE $lg2 | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.dev.s2.tok"
+    fi
+    # Apple BPE and preprocess
+    $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.train.s2" "$TASK2_OUTPATH/$lg1-$lg2.train.s2.tok" $CODES_PATH
+    python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.train.s2"
+    $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.dev.s2" "$TASK2_OUTPATH/$lg1-$lg2.dev.s2.tok" $CODES_PATH
+    python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.dev.s2"
+
+    # Copy out label
+    cp "$TASK2_PATH/$lg1-$lg2/train/train.hter" "$TASK2_OUTPATH/$lg1-$lg2.train.label"
+    cp "$TASK2_PATH/$lg1-$lg2/dev/dev.hter" "$TASK2_OUTPATH/$lg1-$lg2.dev.label"
+
+    # Clean
+    rm -rf "$TASK2_OUTPATH"/*.tok
+done
