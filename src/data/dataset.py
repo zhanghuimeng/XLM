@@ -344,6 +344,22 @@ class ParallelDataset(Dataset):
         # sanity checks
         self.check()
 
+    def get_sentence_ids(self, i):
+        """
+        Return the ids of parallel sentence.
+        New method.
+        """
+        pos1, pos2 = self.pos1[i], self.pos2[i]
+        return self.sent1[pos1[0]: pos1[1]], self.sent2[pos2[0]: pos2[1]]
+
+    def get_sentence_words(self, i, dico):
+        """
+        Return the words of parallel sentence.
+        New method.
+        """
+        sent1, sent2 = self.get_sentence_ids(i)
+        return [dico.id2word[id] for id in sent1], [dico.id2word[id] for id in sent2]
+
     def get_batches_iterator(self, batches, return_indices):
         """
         Return a sentences iterator, given the associated sentence batches.

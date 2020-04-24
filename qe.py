@@ -115,10 +115,11 @@ if params.debug_data:
         data = qe.load_data(task=task)
         for splt in params.data_split:
             logger.info("Task %s, dataset %s:" % (task, splt))
-            for i in range(min(5, len(data[splt]['x']))):
+            for i in range(min(3, len(data[splt]['x']))):
                 logger.info("Pair %d:" % i)
-                logger.info("Sentence 1: %s" % str(data[splt]['x'].sent1[i]))
-                logger.info("Sentence 2: %s" % str(data[splt]['x'].sent2[i]))
+                sent1, sent2 = data[splt]['x'].get_sentence_words(i=i, dico=data['dico'])
+                logger.info("Sentence 1: %s" % " ".join(sent1))
+                logger.info("Sentence 2: %s" % " ".join(sent2))
                 logger.info("Label: %f" % data[splt]['y'][i])
     exit(0)
 
