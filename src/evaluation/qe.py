@@ -12,10 +12,14 @@ import copy
 import time
 import json
 from collections import OrderedDict
+from math import sqrt
 
 import torch
 from torch import nn
 import torch.nn.functional as F
+import numpy as np
+from scipy.stats import spearmanr, pearsonr
+from sklearn.metrics import f1_score, matthews_corrcoef, mean_squared_error, mean_absolute_error
 
 from ..optim import get_optimizer
 from ..utils import concat_batches, truncate, to_cuda
@@ -69,15 +73,23 @@ class QE:
         self.embedder = copy.deepcopy(self._embedder)
         self.embedder.cuda()
 
-        # projection layer
-        self.proj = nn.Sequential(*[
-            nn.Dropout(params.dropout),
-            nn.Linear(self.embedder.out_dim, 3)
-        ]).cuda()
+        if task == "DA" or task == "HTER":
+            # projection layer
+            self.proj = nn.Sequential(*[
+                nn.Dropout(params.dropout),
+                nn.Linear(self.embedder.out_dim, 1)
+            ]).cuda()
+        else:
+            # TODO
+            pass
 
         # optimizers
         self.optimizer_e = get_optimizer(list(self.embedder.get_parameters(params.finetune_layers)), params.optimizer_e)
-        self.optimizer_p = get_optimizer(self.proj.parameters(), params.optimizer_p)
+        if task == "DA" or task == "HTER":
+            self.optimizer_p = get_optimizer(self.proj.parameters(), params.optimizer_p)
+        else:
+            # TODO
+            pass
 
         # train and evaluate the model
         for epoch in range(params.n_epochs):
@@ -86,20 +98,20 @@ class QE:
             self.epoch = epoch
 
             # training
-            logger.info("XNLI - Training epoch %i ..." % epoch)
-            self.train()
+            logger.info("%s - Training epoch %i ..." % (task, epoch))
+            self.train(task=task)
 
             # evaluation
-            logger.info("XNLI - Evaluating epoch %i ..." % epoch)
+            logger.info("%s - Evaluating epoch %i ..." % (task, epoch))
             with torch.no_grad():
-                scores = self.eval()
+                scores = self.eval(task=task)
                 self.scores.update(scores)
 
-    def train(self):
+    def train(self, task):
         """
-        Finetune for one epoch on the XNLI English training set.
+        Finetune for one epoch on the QE training set.
         """
-        # Not modified yet
+        # Modified
         params = self.params
         self.embedder.train()
         self.proj.train()
@@ -110,8 +122,9 @@ class QE:
         nw = 0  # number of words
         t = time.time()
 
-        iterator = self.get_iterator('train', 'en')
-        lang_id = params.lang2id['en']
+        iterator = self.get_iterator('train')
+        lang_id1 = params.lang2id[params.lang[0]]
+        lang_id2 = params.lang2id[params.lang[1]]
 
         while True:
 
@@ -120,25 +133,30 @@ class QE:
                 batch = next(iterator)
             except StopIteration:
                 break
-            (sent1, len1), (sent2, len2), idx = batch
+            (sent1, len1), (sent2, len2), idx = batch  # idx is index in original data
             sent1, len1 = truncate(sent1, len1, params.max_len, params.eos_index)
             sent2, len2 = truncate(sent2, len2, params.max_len, params.eos_index)
             x, lengths, positions, langs = concat_batches(
-                sent1, len1, lang_id,
-                sent2, len2, lang_id,
+                sent1, len1, lang_id1,
+                sent2, len2, lang_id2,
                 params.pad_index,
                 params.eos_index,
                 reset_positions=False
             )
-            y = self.data['en']['train']['y'][idx]
+            y = self.data['train']['y'][idx]
             bs = len(len1)
 
             # cuda
             x, y, lengths, positions, langs = to_cuda(x, y, lengths, positions, langs)
 
             # loss
-            output = self.proj(self.embedder.get_embeddings(x, lengths, positions, langs))
-            loss = F.cross_entropy(output, y)
+            if task == "DA" or task == "HTER":
+                output = self.proj(self.embedder.get_embeddings(x, lengths, positions, langs))
+                output = output.squeeze(1)
+                loss = F.mse_loss(output, y.float())
+            else:
+                # TODO
+                pass
 
             # backward / optimization
             self.optimizer_e.zero_grad()
@@ -154,7 +172,7 @@ class QE:
 
             # log
             if ns % (100 * bs) < bs:
-                logger.info("XNLI - Epoch %i - Train iter %7i - %.1f words/s - Loss: %.4f" % (self.epoch, ns, nw / (time.time() - t), sum(losses) / len(losses)))
+                logger.info("%s - Epoch %i - Train iter %7i - %.1f words/s - Loss: %.4f" % (task, self.epoch, ns, nw / (time.time() - t), sum(losses) / len(losses)))
                 nw, t = 0, time.time()
                 losses = []
 
@@ -162,57 +180,84 @@ class QE:
             if params.epoch_size != -1 and ns >= params.epoch_size:
                 break
 
-    def eval(self):
+    def eval(self, task):
         """
-        Evaluate on XNLI validation and test sets, for all languages.
+        Evaluate on XNLI validation and test sets.
         """
-        # Not modified yet
+        # Modified
         params = self.params
         self.embedder.eval()
         self.proj.eval()
 
         scores = OrderedDict({'epoch': self.epoch})
 
-        for splt in ['valid', 'test']:
+        for splt in self.params.data_split[1:]:
 
-            for lang in XNLI_LANGS:
-                if lang not in params.lang2id:
-                    continue
+                pred = []
+                gold = []
 
-                lang_id = params.lang2id[lang]
-                valid = 0
-                total = 0
+                lang_id1 = params.lang2id[params.lang[0]]
+                lang_id2 = params.lang2id[params.lang[1]]
 
-                for batch in self.get_iterator(splt, lang):
+                for batch in self.get_iterator(splt):
 
                     # batch
                     (sent1, len1), (sent2, len2), idx = batch
                     x, lengths, positions, langs = concat_batches(
-                        sent1, len1, lang_id,
-                        sent2, len2, lang_id,
+                        sent1, len1, lang_id1,
+                        sent2, len2, lang_id2,
                         params.pad_index,
                         params.eos_index,
                         reset_positions=False
                     )
-                    y = self.data[lang][splt]['y'][idx]
+                    y = self.data[splt]['y'][idx]
 
                     # cuda
                     x, y, lengths, positions, langs = to_cuda(x, y, lengths, positions, langs)
 
                     # forward
-                    output = self.proj(self.embedder.get_embeddings(x, lengths, positions, langs))
-                    predictions = output.data.max(1)[1]
+                    if task == "DA" or task == "HTER":
+                        output = self.proj(self.embedder.get_embeddings(x, lengths, positions, langs))
+                        predictions = output.squeeze(1)
+                    else:
+                        # TODO
+                        pass
 
                     # update statistics
-                    valid += predictions.eq(y).sum().item()
-                    total += len(len1)
+                    if task == "DA" or task == "HTER":
+                        pred.append(predictions.cpu().numpy())
+                        gold.append(y.cpu().numpy())
+                    else:
+                        # TODO
+                        pass
 
-                # compute accuracy
-                acc = 100.0 * valid / total
-                scores['xnli_%s_%s_acc' % (splt, lang)] = acc
-                logger.info("XNLI - %s - %s - Epoch %i - Acc: %.1f%%" % (splt, lang, self.epoch, acc))
+                gold = np.concatenate(gold)
+                pred = np.concatenate(pred)
 
-        logger.info("__log__:%s" % json.dumps(scores))
+                # print and debug
+                if task == "DA" or task == "HTER":
+                    with open(os.path.join(params.dump_path, 'pred_epoch_%d.pred' % self.epoch), 'w') as f:
+                        for h in pred:
+                            f.write('%f\n' % h)
+
+                # compute scores
+                rmse = None
+                pearson = None
+                if task == "DA" or task == "HTER":
+                    pearson = pearsonr(pred, gold)[0]
+                    rmse = sqrt(mean_squared_error(pred, gold))
+                    scores['%s_%s_pearson' % (task, splt)] = pearson
+                    scores['%s_%s_rmse' % (task, splt)] = rmse
+                else:
+                    # TODO
+                    pass
+
+                if pearson is not None:
+                    logger.info("QE - %s - %s - Epoch %i - Pearson: %.6f" % (task, splt, self.epoch, pearson))
+                if rmse is not None:
+                    logger.info("QE - %s - %s - Epoch %i - RMSE: %.6f" % (task, splt, self.epoch, rmse))
+
+        logger.info("__log__:%s" % json.dumps(str(scores)))
         return scores
 
     def load_data(self, task):
