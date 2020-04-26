@@ -65,6 +65,8 @@ parser.add_argument("--optimizer_p", type=str, default="adam,lr=0.0001",
                     help="Projection (classifier) optimizer")
 parser.add_argument("--n_epochs", type=int, default=100,
                     help="Maximum number of epochs")
+parser.add_argument("--patience", type=int, default=20,
+                    help="Patience to stop training.")
 parser.add_argument("--epoch_size", type=int, default=-1,
                     help="Epoch size (-1 for full pass over the dataset)")
 
@@ -104,10 +106,9 @@ params.lang2id = embedder.pretrain_params['lang2id']
 
 # initialize the experiment / build sentence embedder
 logger = initialize_exp(params)   # not yet carefully read
-scores = {}  # what's this?
 
 # prepare trainers / evaluators
-qe = QE(embedder, scores, params)
+qe = QE(embedder, params)
 
 if params.debug_data:
     logger = getLogger()

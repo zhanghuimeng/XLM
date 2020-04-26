@@ -32,6 +32,44 @@ class AttrDict(dict):
         self.__dict__ = self
 
 
+class ScoreRecorder:
+    """
+    Uses this to record scores.
+    """
+    def __init__(self, score_names, main_score, patience):
+        """
+        score_names: a list of scores to record.
+        main_score: the main score to do patience on.
+        patience: the patience.
+        """
+        if main_score not in score_names:
+            raise ValueError('The main score name is not in all the names')
+        self.score_names = score_names
+        self.main_score = main_score
+        self.score_dict = {}
+        self.patience = patience
+        self.fuss = 0
+        self.max_score = None
+        for score in self.score_names:
+            self.score_dict[score] = []
+
+    def update(self, score_name, score):
+        if score_name not in self.score_names:
+            raise ValueError('The score name is not in all the names')
+        self.score_dict[score_name].append(score)
+        if score_name == self.main_score:
+            if self.max_score is None or score > self.max_score:
+                self.fuss = 0
+                self.max_score = score
+            else:
+                self.fuss += 1
+
+    def check(self):
+        if self.fuss < self.patience:
+            return True
+        return False
+
+
 def bool_flag(s):
     """
     Parse boolean arguments from the command line.

@@ -22,7 +22,7 @@ from scipy.stats import spearmanr, pearsonr
 from sklearn.metrics import f1_score, matthews_corrcoef, mean_squared_error, mean_absolute_error
 
 from ..optim import get_optimizer
-from ..utils import concat_batches, truncate, to_cuda
+from ..utils import concat_batches, truncate, to_cuda, ScoreRecorder
 from ..data.dataset import ParallelDataset
 from ..data.loader import load_binarized, set_dico_parameters
 
@@ -31,7 +31,7 @@ logger = getLogger()
 
 class QE:
 
-    def __init__(self, embedder, scores, params):
+    def __init__(self, embedder, params):
         """
         Initialize QE trainer / evaluator.
         Initial `embedder` should be on CPU to save memory.
@@ -39,7 +39,7 @@ class QE:
         # Do not need modification
         self._embedder = embedder
         self.params = params
-        self.scores = scores
+        self.score_recorder = None
 
     def get_iterator(self, splt):
         """
@@ -68,6 +68,13 @@ class QE:
             raise Exception(("Dictionary in evaluation data (%i words) seems different than the one " +
                              "in the pretrained model (%i words). Please verify you used the same dictionary, " +
                              "and the same values for max_vocab and min_count.") % (len(self.data['dico']), len(self._embedder.dico)))
+
+        # Score Recorder
+        if task == "DA" or task == "HTER":
+            self.score_recorder = ScoreRecorder(['pearson', 'rmse', 'mae'], 'pearson', params.patience)
+        else:
+            # TODO
+            pass
 
         # embedder
         self.embedder = copy.deepcopy(self._embedder)
@@ -104,8 +111,11 @@ class QE:
             # evaluation
             logger.info("%s - Evaluating epoch %i ..." % (task, epoch))
             with torch.no_grad():
-                scores = self.eval(task=task)
-                self.scores.update(scores)
+                self.eval(task=task)
+
+            logger.info("Patience: %d" % self.score_recorder.fuss)
+            if not self.score_recorder.check():
+                break
 
     def train(self, task):
         """
@@ -231,8 +241,12 @@ class QE:
                         # TODO
                         pass
 
-                gold = np.concatenate(gold)
-                pred = np.concatenate(pred)
+                if task == "DA" or task == "HTER":
+                    gold = np.concatenate(gold)
+                    pred = np.concatenate(pred)
+                else:
+                    # TODO
+                    pass
 
                 # print and debug
                 if task == "DA" or task == "HTER":
@@ -241,21 +255,22 @@ class QE:
                             f.write('%f\n' % h)
 
                 # compute scores
-                rmse = None
-                pearson = None
                 if task == "DA" or task == "HTER":
                     pearson = pearsonr(pred, gold)[0]
                     rmse = sqrt(mean_squared_error(pred, gold))
-                    scores['%s_%s_pearson' % (task, splt)] = pearson
-                    scores['%s_%s_rmse' % (task, splt)] = rmse
+                    mae = mean_absolute_error(pred, gold)
+                    self.score_recorder.update('pearson', pearson)
+                    self.score_recorder.update('rmse', rmse)
+                    self.score_recorder.update('mae', mae)
                 else:
                     # TODO
                     pass
 
-                if pearson is not None:
+                # print
+                if task == "DA" or task == "HTER":
                     logger.info("QE - %s - %s - Epoch %i - Pearson: %.6f" % (task, splt, self.epoch, pearson))
-                if rmse is not None:
                     logger.info("QE - %s - %s - Epoch %i - RMSE: %.6f" % (task, splt, self.epoch, rmse))
+                    logger.info("QE - %s - %s - Epoch %i - MAE: %.6f" % (task, splt, self.epoch, mae))
 
         logger.info("__log__:%s" % json.dumps(str(scores)))
         return scores
