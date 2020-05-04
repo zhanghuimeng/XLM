@@ -17,6 +17,8 @@ TOOLS_PATH=$PWD/tools
 TOKENIZE=$TOOLS_PATH/tokenize.sh
 LOWER_REMOVE_ACCENT=$TOOLS_PATH/lowercase_and_remove_accent.py
 FASTBPE=$TOOLS_PATH/fastBPE/fast
+CUT_GAP=$TOOLS_PATH/cut_word_gap_labels.py
+
 
 # install tools
 ./install-tools.sh
@@ -75,7 +77,7 @@ for i in $(seq 0 1); do
     rm -rf "$TASK1_OUTPATH"/*.tok
 done
 
-# Task1
+# Task2
 echo "*** Preparing Task 2 set ****"
 for i in $(seq 0 1); do
     lg1="${LG1[$i]}"
@@ -111,9 +113,19 @@ for i in $(seq 0 1); do
     $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.dev.s2" "$TASK2_OUTPATH/$lg1-$lg2.dev.s2.tok" $CODES_PATH
     python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.dev.s2"
 
-    # Copy out label
+    # Parse Label
     cp "$TASK2_PATH/$lg1-$lg2/train/train.hter" "$TASK2_OUTPATH/$lg1-$lg2.train.label"
     cp "$TASK2_PATH/$lg1-$lg2/dev/dev.hter" "$TASK2_OUTPATH/$lg1-$lg2.dev.label"
+    python $CUT_GAP --input "$TASK2_PATH/$lg1-$lg2/train/train.source_tags" \
+        --word_output "$TASK2_OUTPATH/$lg1-$lg2.train.src_tags.label"
+    python $CUT_GAP --input "$TASK2_PATH/$lg1-$lg2/dev/dev.source_tags" \
+        --word_output "$TASK2_OUTPATH/$lg1-$lg2.dev.src_tags.label"
+    python $CUT_GAP --input "$TASK2_PATH/$lg1-$lg2/train/train.tags" --cut \
+        --word_output "$TASK2_OUTPATH/$lg1-$lg2.train.tgt_tags.label" \
+        --gap_output "$TASK2_OUTPATH/$lg1-$lg2.train.gap_tags.label"
+    python $CUT_GAP --input "$TASK2_PATH/$lg1-$lg2/dev/dev.tags" --cut \
+        --word_output "$TASK2_OUTPATH/$lg1-$lg2.dev.tgt_tags.label" \
+        --gap_output "$TASK2_OUTPATH/$lg1-$lg2.dev.gap_tags.label"
 
     # Clean
     rm -rf "$TASK2_OUTPATH"/*.tok
