@@ -9,7 +9,7 @@ from src.evaluation.qe import QE
 from src.model.embedder import SentenceEmbedder
 
 
-TASKS = ["DA", "HTER", "TAG"]
+TASKS = ["DA", "HTER", "TAG_SRC", "TAG_TGT", "TAG_GAP"]
 
 # parse parameters
 parser = argparse.ArgumentParser(description='Train on QE tasks')
@@ -121,7 +121,8 @@ if params.debug_data:
                 sent1, sent2 = data[splt]['x'].get_sentence_words(i=i, dico=data['dico'])
                 logger.info("Sentence 1: %s" % " ".join(sent1))
                 logger.info("Sentence 2: %s" % " ".join(sent2))
-                logger.info("Label: %f" % data[splt]['y'][i])
+                if task == "DA" or task == "HTER":
+                    logger.info("Label: %f" % data[splt]['y'][i])
     exit(0)
 
 # run

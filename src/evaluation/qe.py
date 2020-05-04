@@ -22,7 +22,7 @@ from scipy.stats import spearmanr, pearsonr
 from sklearn.metrics import f1_score, matthews_corrcoef, mean_squared_error, mean_absolute_error
 
 from ..optim import get_optimizer
-from ..utils import concat_batches, truncate, to_cuda, ScoreRecorder
+from ..utils import concat_batches, truncate, to_cuda, ScoreRecorder, get_embedding_per_token
 from ..data.dataset import ParallelDataset
 from ..data.loader import load_binarized, set_dico_parameters
 
@@ -73,8 +73,7 @@ class QE:
         if task == "DA" or task == "HTER":
             self.score_recorder = ScoreRecorder(['pearson', 'rmse', 'mae'], 'pearson', params.patience)
         else:
-            # TODO
-            pass
+            self.score_recorder = ScoreRecorder(['mcc', 'acc', 'f1'], 'mcc', params.patience)
 
         # embedder
         self.embedder = copy.deepcopy(self._embedder)
@@ -86,17 +85,31 @@ class QE:
                 nn.Dropout(params.dropout),
                 nn.Linear(self.embedder.out_dim, 1)
             ]).cuda()
-        else:
-            # TODO
-            pass
+        elif task == "TAG_SRC":
+            # source projection layer
+            self.proj = nn.Sequential(*[
+                nn.Dropout(params.dropout),
+                nn.Linear(self.embedder.out_dim, 1),
+                nn.Sigmoid()
+            ]).cuda()
+        elif task == "TAG_TGT":
+            # target projection layer
+            self.proj = nn.Sequential(*[
+                nn.Dropout(params.dropout),
+                nn.Linear(self.embedder.out_dim, 1),
+                nn.Sigmoid()
+            ]).cuda()
+        elif task == "TAG_GAP":
+            # target gap projection layer
+            self.proj = nn.Sequential(*[
+                nn.Dropout(params.dropout),
+                nn.Linear(self.embedder.out_dim * 2, 1),
+                nn.Sigmoid()
+            ]).cuda()
 
         # optimizers
         self.optimizer_e = get_optimizer(list(self.embedder.get_parameters(params.finetune_layers)), params.optimizer_e)
-        if task == "DA" or task == "HTER":
-            self.optimizer_p = get_optimizer(self.proj.parameters(), params.optimizer_p)
-        else:
-            # TODO
-            pass
+        self.optimizer_p = get_optimizer(self.proj.parameters(), params.optimizer_p)
 
         # train and evaluate the model
         for epoch in range(params.n_epochs):
@@ -165,8 +178,50 @@ class QE:
                 output = output.squeeze(1)
                 loss = F.mse_loss(output, y.float())
             else:
-                # TODO
-                pass
+                embeddings = self.embedder.get_all_embeddings(x, lengths, positions, langs)
+                slen, bs, _ = embeddings.size()
+                # logger.info(embeddings.size())
+                # logger.info("bs=%d" % bs)
+                # logger.info("slen=%d" % slen)
+                # put all tags in a column
+                output_list = []
+                y_list = []
+                for i in range(bs):
+                    # def get_embedding_per_token(): return cls, source, sep, target, sep
+                    cls, src, sep1, tgt, sep2 = get_embedding_per_token(
+                        dico=self.data['dico'],
+                        x=x[:,i].t(),
+                        embeddings=embeddings[:,i,:],
+                        mode="first"
+                    )
+
+                    # real length
+                    len_src = len(src)
+                    len_tgt = len(tgt)
+
+                    if task == "TAG_SRC":
+                        y_list.append(y[i][:len_src])
+                        output = self.proj(src)
+                        output = output.squeeze(1)
+                        output_list.append(output)
+                    elif task == "TAG_TGT":
+                        y_list.append(y[i][:len_tgt])
+                        output = self.proj(tgt)
+                        output = output.squeeze(1)
+                        output_list.append(output)
+                    elif task == "TAG_GAP":
+                        y_list.append(y[i][:len_tgt + 1])
+                        top_half = torch.cat([sep1.view(1, -1), tgt], 0)
+                        bottom_half = torch.cat([tgt, sep2.view(1, -1)], 0)
+                        input = torch.cat([top_half, bottom_half], 1)
+                        output = self.proj(input)
+                        output = output.squeeze(1)
+                        output_list.append(output)
+
+                y_list = torch.cat(y_list, 0)
+                output_list = torch.cat(output_list, 0)
+                loss_function = torch.nn.BCELoss()
+                loss = loss_function(output_list, y_list.float())
 
             # backward / optimization
             self.optimizer_e.zero_grad()
@@ -313,7 +368,20 @@ class QE:
                 data[splt]['y'] = torch.FloatTensor(labels)
                 assert len(data[splt]['x']) == len(data[splt]['y'])
             else:
-                # TODO
-                pass
-
+                whole_filename = "%s.%s.%s.label"
+                if task == "TAG_SRC":
+                    whole_filename = whole_filename % (filename, splt, "src_tags")
+                elif task == "TAG_TGT":
+                    whole_filename = whole_filename % (filename, splt, "tgt_tags")
+                elif task == "TAG_GAP":
+                    whole_filename = whole_filename % (filename, splt, "gap_tags")
+                with open(os.path.join(dpath, whole_filename), 'r') as f:
+                    labels = []
+                    for l in f:
+                        labels.append([])
+                        for token in l.rstrip().split(' '):
+                            labels[-1].append(int(token))
+                labels = [torch.LongTensor(l) for l in labels]
+                data[splt]['y'] = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=2)
+                assert len(data[splt]['x']) == len(data[splt]['y'])
         return data

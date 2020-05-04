@@ -135,3 +135,13 @@ class SentenceEmbedder(object):
 
         # single-vector sentence representation (first column of last layer)
         return tensor[0]
+
+    def get_all_embeddings(self, x, lengths, positions=None, langs=None):
+        # Copied from get_embeddings
+        slen, bs = x.size()
+        assert lengths.size(0) == bs and lengths.max().item() == slen
+
+        tensor = self.model('fwd', x=x, lengths=lengths, positions=positions, langs=langs, causal=False)
+        assert tensor.size() == (slen, bs, self.out_dim)
+
+        return tensor

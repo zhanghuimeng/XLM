@@ -17,6 +17,7 @@ import numpy as np
 import torch
 
 from .logger import create_logger
+from logging import getLogger
 
 
 FALSY_STRINGS = {'off', 'false', '0'}
@@ -330,3 +331,86 @@ def find_modules(module, module_name, module_instance, found):
         for name, child in module.named_children():
             name = ('%s[%s]' if name.isdigit() else '%s.%s') % (module_name, name)
             find_modules(child, name, module_instance, found)
+
+
+def get_embedding_per_token(dico, x, embeddings, mode="average"):
+    """
+    Return the average feature of each whole word
+    :param dico: The dictionary, has id2word feature
+    :param embeddings: The embedding of a line
+    :param mode: average or first
+    :return: cls, source, sep, target, sep
+    """
+    # logger = getLogger()
+
+    if not mode in ["average", "first"]:
+        raise ValueError("%s method not implemented" % mode)
+
+    cls = None
+    src = []
+    sep1 = None
+    tgt = []
+    sep2 = None
+
+    slen, _ = embeddings.size()
+    step = 0
+    in_word_piece = False
+    for i in range(slen):
+        if step == 0:
+            cls = embeddings[i]
+            step += 1
+        elif step == 1:
+            if x[i] == 1:
+                sep1 = embeddings[i]
+                step += 1
+                in_word_piece = False
+                continue
+            if not in_word_piece:
+                in_word_piece = True
+                src.append([])
+            src[-1].append(embeddings[i].view(1, -1))
+            if not "@@" in dico.id2word[x[i].item()]:
+                in_word_piece = False
+        elif step == 2:
+            if x[i] == 1:
+                sep2 = embeddings[i]
+                step += 1
+                continue
+            if not in_word_piece:
+                in_word_piece = True
+                tgt.append([])
+            tgt[-1].append(embeddings[i].view(1, -1))
+            if not "@@" in dico.id2word[x[i].item()]:
+                in_word_piece = False
+        elif step == 3:
+            pass
+
+    # logger.info(len(src))
+    # logger.info(len(tgt))
+    # logger.info(len(x))
+    # logger.info(x)
+    # logger.info("Before concating")
+    # logger.info(src)
+    # logger.info(tgt)
+
+    for i in range(len(src)):
+        if mode == "average":
+            # logger.info("Shape after concating one word")
+            # logger.info(torch.cat(src[i], 0).size())
+            src[i] = torch.cat(src[i], 0).mean(dim=0, keepdims=True)
+        elif mode == "first":
+            src[i] = src[i][0]
+
+    for i in range(len(tgt)):
+        if mode == "average":
+            tgt[i] = torch.cat(tgt[i], 0).mean(dim=0, keepdims=True)
+        elif mode == "first":
+            tgt[i] = tgt[i][0]
+
+    # logger.info("Before averaging")
+    # logger.info(src)
+    # logger.info(tgt)
+    src = torch.cat(src, 0)
+    tgt = torch.cat(tgt, 0)
+
+    return cls, src, sep1, tgt, sep2
