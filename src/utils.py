@@ -51,6 +51,7 @@ class ScoreRecorder:
         self.patience = patience
         self.fuss = 0
         self.max_score = None
+        self.best_epoch = None
         for score in self.score_names:
             self.score_dict[score] = []
 
@@ -62,6 +63,7 @@ class ScoreRecorder:
             if self.max_score is None or score > self.max_score:
                 self.fuss = 0
                 self.max_score = score
+                self.best_epoch = len(self.score_dict[score_name]) - 1
             else:
                 self.fuss += 1
 
@@ -69,6 +71,14 @@ class ScoreRecorder:
         if self.fuss < self.patience:
             return True
         return False
+
+    def print_summary(self):
+        logger = getLogger()
+        logger.info("Total Epoch: %d" % len(self.score_dict[self.main_score]))
+        logger.info("Best Epoch: %d" % self.best_epoch)
+        logger.info("Best score:")
+        for score_name in self.score_dict:
+            logger.info("%s: %f" % (score_name, self.score_dict[score_name][self.best_epoch]))
 
 
 def bool_flag(s):

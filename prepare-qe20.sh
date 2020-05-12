@@ -44,30 +44,38 @@ for i in $(seq 0 1); do
     then
         sed '1d' "$TASK1_PATH/$lg1-$lg2/train.$lg1$lg2.df.short.tsv" | cut -f2 | python $LOWER_REMOVE_ACCENT > "$TASK1_OUTPATH/$lg1-$lg2.train.s1.tok"
         sed '1d' "$TASK1_PATH/$lg1-$lg2/dev.$lg1$lg2.df.short.tsv" | cut -f2 | python $LOWER_REMOVE_ACCENT > "$TASK1_OUTPATH/$lg1-$lg2.dev.s1.tok"
+        sed '1d' "$TASK1_PATH/$lg1-$lg2/test.$lg1$lg2.df.short.tsv" | cut -f2 | python $LOWER_REMOVE_ACCENT > "$TASK1_OUTPATH/$lg1-$lg2.test.s1.tok"
     else
         sed '1d' "$TASK1_PATH/$lg1-$lg2/train.$lg1$lg2.df.short.tsv" | cut -f2 | $TOKENIZE $lg1 | python $LOWER_REMOVE_ACCENT > "$TASK1_OUTPATH/$lg1-$lg2.train.s1.tok"
         sed '1d' "$TASK1_PATH/$lg1-$lg2/dev.$lg1$lg2.df.short.tsv" | cut -f2 | $TOKENIZE $lg1 | python $LOWER_REMOVE_ACCENT > "$TASK1_OUTPATH/$lg1-$lg2.dev.s1.tok"
+        sed '1d' "$TASK1_PATH/$lg1-$lg2/test.$lg1$lg2.df.short.tsv" | cut -f2 | $TOKENIZE $lg1 | python $LOWER_REMOVE_ACCENT > "$TASK1_OUTPATH/$lg1-$lg2.test.s1.tok"
     fi
     # Apple BPE and preprocess
     $FASTBPE applybpe "$TASK1_OUTPATH/$lg1-$lg2.train.s1" "$TASK1_OUTPATH/$lg1-$lg2.train.s1.tok" $CODES_PATH
     python preprocess.py $VOCAB_PATH "$TASK1_OUTPATH/$lg1-$lg2.train.s1"
     $FASTBPE applybpe "$TASK1_OUTPATH/$lg1-$lg2.dev.s1" "$TASK1_OUTPATH/$lg1-$lg2.dev.s1.tok" $CODES_PATH
     python preprocess.py $VOCAB_PATH "$TASK1_OUTPATH/$lg1-$lg2.dev.s1"
+    $FASTBPE applybpe "$TASK1_OUTPATH/$lg1-$lg2.test.s1" "$TASK1_OUTPATH/$lg1-$lg2.test.s1.tok" $CODES_PATH
+    python preprocess.py $VOCAB_PATH "$TASK1_OUTPATH/$lg1-$lg2.test.s1"
 
     # Cut out translation sentence
     if [ $lg2 == "en" ]
     then
         sed '1d' "$TASK1_PATH/$lg1-$lg2/train.$lg1$lg2.df.short.tsv" | cut -f3 | python $LOWER_REMOVE_ACCENT > "$TASK1_OUTPATH/$lg1-$lg2.train.s2.tok"
         sed '1d' "$TASK1_PATH/$lg1-$lg2/dev.$lg1$lg2.df.short.tsv" | cut -f3 | python $LOWER_REMOVE_ACCENT > "$TASK1_OUTPATH/$lg1-$lg2.dev.s2.tok"
+        sed '1d' "$TASK1_PATH/$lg1-$lg2/test.$lg1$lg2.df.short.tsv" | cut -f3 | python $LOWER_REMOVE_ACCENT > "$TASK1_OUTPATH/$lg1-$lg2.test.s2.tok"
     else
         sed '1d' "$TASK1_PATH/$lg1-$lg2/train.$lg1$lg2.df.short.tsv" | cut -f3 | $TOKENIZE $lg2 | python $LOWER_REMOVE_ACCENT > "$TASK1_OUTPATH/$lg1-$lg2.train.s2.tok"
         sed '1d' "$TASK1_PATH/$lg1-$lg2/dev.$lg1$lg2.df.short.tsv" | cut -f3 | $TOKENIZE $lg2 | python $LOWER_REMOVE_ACCENT > "$TASK1_OUTPATH/$lg1-$lg2.dev.s2.tok"
+        sed '1d' "$TASK1_PATH/$lg1-$lg2/test.$lg1$lg2.df.short.tsv" | cut -f3 | $TOKENIZE $lg2 | python $LOWER_REMOVE_ACCENT > "$TASK1_OUTPATH/$lg1-$lg2.test.s2.tok"
     fi
     # Apple BPE and preprocess
     $FASTBPE applybpe "$TASK1_OUTPATH/$lg1-$lg2.train.s2" "$TASK1_OUTPATH/$lg1-$lg2.train.s2.tok" $CODES_PATH
     python preprocess.py $VOCAB_PATH "$TASK1_OUTPATH/$lg1-$lg2.train.s2"
     $FASTBPE applybpe "$TASK1_OUTPATH/$lg1-$lg2.dev.s2" "$TASK1_OUTPATH/$lg1-$lg2.dev.s2.tok" $CODES_PATH
     python preprocess.py $VOCAB_PATH "$TASK1_OUTPATH/$lg1-$lg2.dev.s2"
+    $FASTBPE applybpe "$TASK1_OUTPATH/$lg1-$lg2.test.s2" "$TASK1_OUTPATH/$lg1-$lg2.test.s2.tok" $CODES_PATH
+    python preprocess.py $VOCAB_PATH "$TASK1_OUTPATH/$lg1-$lg2.test.s2"
 
     # Cut out label
     sed '1d' "$TASK1_PATH/$lg1-$lg2/train.$lg1$lg2.df.short.tsv" | cut -f7 > "$TASK1_OUTPATH/$lg1-$lg2.train.label"

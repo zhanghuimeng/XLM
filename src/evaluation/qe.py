@@ -19,7 +19,7 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 from scipy.stats import spearmanr, pearsonr
-from sklearn.metrics import f1_score, matthews_corrcoef, mean_squared_error, mean_absolute_error
+from sklearn.metrics import accuracy_score, f1_score, matthews_corrcoef, mean_squared_error, mean_absolute_error
 
 from ..optim import get_optimizer
 from ..utils import concat_batches, truncate, to_cuda, ScoreRecorder, get_embedding_per_token
@@ -129,6 +129,8 @@ class QE:
             logger.info("Patience: %d" % self.score_recorder.fuss)
             if not self.score_recorder.check():
                 break
+
+        self.score_recorder.print_summary()
 
     def train(self, task):
         """
@@ -258,58 +260,110 @@ class QE:
 
         for splt in self.params.data_split[1:]:
 
-                pred = []
-                gold = []
+            pred = []
+            gold = []
 
-                lang_id1 = params.lang2id[params.lang[0]]
-                lang_id2 = params.lang2id[params.lang[1]]
+            lang_id1 = params.lang2id[params.lang[0]]
+            lang_id2 = params.lang2id[params.lang[1]]
 
-                for batch in self.get_iterator(splt):
+            for batch in self.get_iterator(splt):
 
-                    # batch
-                    (sent1, len1), (sent2, len2), idx = batch
-                    x, lengths, positions, langs = concat_batches(
-                        sent1, len1, lang_id1,
-                        sent2, len2, lang_id2,
-                        params.pad_index,
-                        params.eos_index,
-                        reset_positions=False
-                    )
-                    y = self.data[splt]['y'][idx]
+                # batch
+                (sent1, len1), (sent2, len2), idx = batch
+                x, lengths, positions, langs = concat_batches(
+                    sent1, len1, lang_id1,
+                    sent2, len2, lang_id2,
+                    params.pad_index,
+                    params.eos_index,
+                    reset_positions=False
+                )
+                # for y == "test", it is pseudo y
+                y = self.data[splt]['y'][idx]
 
-                    # cuda
-                    x, y, lengths, positions, langs = to_cuda(x, y, lengths, positions, langs)
+                # cuda
+                x, y, lengths, positions, langs = to_cuda(x, y, lengths, positions, langs)
 
-                    # forward
-                    if task == "DA" or task == "HTER":
-                        output = self.proj(self.embedder.get_embeddings(x, lengths, positions, langs))
-                        predictions = output.squeeze(1)
-                    else:
-                        # TODO
-                        pass
-
-                    # update statistics
-                    if task == "DA" or task == "HTER":
-                        pred.append(predictions.cpu().numpy())
-                        gold.append(y.cpu().numpy())
-                    else:
-                        # TODO
-                        pass
-
+                # forward
                 if task == "DA" or task == "HTER":
-                    gold = np.concatenate(gold)
-                    pred = np.concatenate(pred)
+                    output = self.proj(self.embedder.get_embeddings(x, lengths, positions, langs))
+                    predictions = output.squeeze(1)
                 else:
-                    # TODO
-                    pass
+                    # copied from train()
+                    embeddings = self.embedder.get_all_embeddings(x, lengths, positions, langs)
+                    slen, bs, _ = embeddings.size()
 
-                # print and debug
+                    output_list = []
+                    y_list = []
+                    for i in range(bs):
+                        # def get_embedding_per_token(): return cls, source, sep, target, sep
+                        cls, src, sep1, tgt, sep2 = get_embedding_per_token(
+                            dico=self.data['dico'],
+                            x=x[:, i].t(),
+                            embeddings=embeddings[:, i, :],
+                            mode="average"
+                        )
+
+                        # real length
+                        len_src = len(src)
+                        len_tgt = len(tgt)
+
+                        if task == "TAG_SRC":
+                            y_list.append(y[i][:len_src])
+                            output = self.proj(src)
+                            output = output.squeeze(1)
+                            output_list.append(output)
+                        elif task == "TAG_TGT":
+                            y_list.append(y[i][:len_tgt])
+                            output = self.proj(tgt)
+                            output = output.squeeze(1)
+                            output_list.append(output)
+                        elif task == "TAG_GAP":
+                            y_list.append(y[i][:len_tgt + 1])
+                            top_half = torch.cat([sep1.view(1, -1), tgt], 0)
+                            bottom_half = torch.cat([tgt, sep2.view(1, -1)], 0)
+                            input = torch.cat([top_half, bottom_half], 1)
+                            output = self.proj(input)
+                            output = output.squeeze(1)
+                            output_list.append(output)
+
+                    y_list = torch.cat(y_list, 0)
+                    # logger.info(y_list)
+                    output_list = torch.cat(output_list, 0)
+                    # logger.info(output_list)
+
+                # update statistics
                 if task == "DA" or task == "HTER":
-                    with open(os.path.join(params.dump_path, 'pred_epoch_%d.pred' % self.epoch), 'w') as f:
-                        for h in pred:
-                            f.write('%f\n' % h)
+                    pred.append(predictions.cpu().numpy())
+                    gold.append(y.cpu().numpy())
+                else:
+                    pred.append(output_list.cpu().numpy())
+                    gold.append(y_list.cpu().numpy())
 
-                # compute scores
+            if task == "DA" or task == "HTER":
+                gold = np.concatenate(gold)
+                pred = np.concatenate(pred)
+            else:
+                gold = np.concatenate(gold).astype(np.int)
+                pred = np.around(np.concatenate(pred)).astype(np.int)
+
+            # print and debug
+            if task == "DA" or task == "HTER":
+
+                with open(os.path.join(params.dump_path, '%s_epoch_%d.out' % (splt, self.epoch)), 'w') as f:
+                    for h in pred:
+                        f.write('%f\n' % h)
+            else:
+                # is still buggy, needs to be separated by the length of real label
+                with open(os.path.join(params.dump_path, '%s_epoch_%d.out' % (splt, self.epoch)), 'w') as f:
+                    for token in pred:
+                        if token == 1:
+                            f.write("OK ")
+                        else:
+                            f.write("BAD ")
+                    f.write("\n")
+
+            # compute scores
+            if splt == "dev":
                 if task == "DA" or task == "HTER":
                     pearson = pearsonr(pred, gold)[0]
                     rmse = sqrt(mean_squared_error(pred, gold))
@@ -318,14 +372,25 @@ class QE:
                     self.score_recorder.update('rmse', rmse)
                     self.score_recorder.update('mae', mae)
                 else:
-                    # TODO
-                    pass
+                    mcc = matthews_corrcoef(y_true=gold, y_pred=pred)
+                    acc = accuracy_score(y_true=gold, y_pred=pred)
+                    # f1 = f1_score(y_true=gold, y_pred=pred)
+                    self.score_recorder.update('mcc', mcc)
+                    self.score_recorder.update('acc', acc)
+                    # self.score_recorder.update('f1', f1)
 
-                # print
+            # print
+            if splt == "dev":
                 if task == "DA" or task == "HTER":
                     logger.info("QE - %s - %s - Epoch %i - Pearson: %.6f" % (task, splt, self.epoch, pearson))
                     logger.info("QE - %s - %s - Epoch %i - RMSE: %.6f" % (task, splt, self.epoch, rmse))
                     logger.info("QE - %s - %s - Epoch %i - MAE: %.6f" % (task, splt, self.epoch, mae))
+                else:
+                    logger.info("QE - %s - %s - Epoch %i - MCC: %.6f" % (task, splt, self.epoch, mcc))
+                    logger.info("QE - %s - %s - Epoch %i - ACC: %.6f" % (task, splt, self.epoch, acc))
+                    # logger.info("QE - %s - %s - Epoch %i - F1: %.6f" % (task, splt, self.epoch, f1))
+            else:
+                logger.info("QE - %s - %s - Epoch %i - Finished" % (task, splt, self.epoch))
 
         logger.info("__log__:%s" % json.dumps(str(scores)))
         return scores
@@ -362,26 +427,31 @@ class QE:
             )
 
             # load labels
-            if task == "DA" or task == "HTER":
-                with open(os.path.join(dpath, '%s.%s.label' % (filename, splt)), 'r') as f:
-                    labels = [float(l.rstrip()) for l in f]
-                data[splt]['y'] = torch.FloatTensor(labels)
-                assert len(data[splt]['x']) == len(data[splt]['y'])
+            if splt != "test":
+                if task == "DA" or task == "HTER":
+                    with open(os.path.join(dpath, '%s.%s.label' % (filename, splt)), 'r') as f:
+                        labels = [float(l.rstrip()) for l in f]
+                    data[splt]['y'] = torch.FloatTensor(labels)
+                    assert len(data[splt]['x']) == len(data[splt]['y'])
+                else:
+                    whole_filename = "%s.%s.%s.label"
+                    if task == "TAG_SRC":
+                        whole_filename = whole_filename % (filename, splt, "src_tags")
+                    elif task == "TAG_TGT":
+                        whole_filename = whole_filename % (filename, splt, "tgt_tags")
+                    elif task == "TAG_GAP":
+                        whole_filename = whole_filename % (filename, splt, "gap_tags")
+                    with open(os.path.join(dpath, whole_filename), 'r') as f:
+                        labels = []
+                        for l in f:
+                            labels.append([])
+                            for token in l.rstrip().split(' '):
+                                labels[-1].append(int(token))
+                    labels = [torch.LongTensor(l) for l in labels]
+                    data[splt]['y'] = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=2)
+                    assert len(data[splt]['x']) == len(data[splt]['y'])
             else:
-                whole_filename = "%s.%s.%s.label"
-                if task == "TAG_SRC":
-                    whole_filename = whole_filename % (filename, splt, "src_tags")
-                elif task == "TAG_TGT":
-                    whole_filename = whole_filename % (filename, splt, "tgt_tags")
-                elif task == "TAG_GAP":
-                    whole_filename = whole_filename % (filename, splt, "gap_tags")
-                with open(os.path.join(dpath, whole_filename), 'r') as f:
-                    labels = []
-                    for l in f:
-                        labels.append([])
-                        for token in l.rstrip().split(' '):
-                            labels[-1].append(int(token))
-                labels = [torch.LongTensor(l) for l in labels]
-                data[splt]['y'] = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=2)
-                assert len(data[splt]['x']) == len(data[splt]['y'])
+                # pseudo y
+                data[splt]['y'] = data["train"]['y'][:len(data[splt]['x'])]
+
         return data
