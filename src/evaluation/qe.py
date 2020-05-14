@@ -22,7 +22,7 @@ from scipy.stats import spearmanr, pearsonr
 from sklearn.metrics import accuracy_score, f1_score, matthews_corrcoef, mean_squared_error, mean_absolute_error
 
 from ..optim import get_optimizer
-from ..utils import concat_batches, truncate, to_cuda, ScoreRecorder, get_embedding_per_token
+from ..utils import concat_batches, truncate, to_cuda, ScoreRecorder, get_embedding_per_token, print_sentence
 from ..data.dataset import ParallelDataset
 from ..data.loader import load_binarized, set_dico_parameters
 
@@ -169,6 +169,8 @@ class QE:
                 reset_positions=False
             )
             y = self.data['train']['y'][idx]
+            if task == "TAG_SRC" or task == "TAG_TGT" or task == "TAG_GAP":
+                y_len = self.data['train']['y_len'][idx]
             bs = len(len1)
 
             # cuda
@@ -202,16 +204,22 @@ class QE:
                     len_tgt = len(tgt)
 
                     if task == "TAG_SRC":
+                        # if y_len[i] != len_src:
+                        #     logger.info("real len=%d, calc len=%d" % (y_len[i], len_src))
+                        #     print_sentence(x=x[:,i].t(), dico=self.data['dico'])
+                        # assert (y_len[i] == len_src)
                         y_list.append(y[i][:len_src])
                         output = self.proj(src)
                         output = output.squeeze(1)
                         output_list.append(output)
                     elif task == "TAG_TGT":
+                        # assert (y_len[i] == len_tgt)
                         y_list.append(y[i][:len_tgt])
                         output = self.proj(tgt)
                         output = output.squeeze(1)
                         output_list.append(output)
                     elif task == "TAG_GAP":
+                        # assert (y_len[i] == len_tgt + 1)
                         y_list.append(y[i][:len_tgt + 1])
                         top_half = torch.cat([sep1.view(1, -1), tgt], 0)
                         bottom_half = torch.cat([tgt, sep2.view(1, -1)], 0)
@@ -279,6 +287,8 @@ class QE:
                 )
                 # for y == "test", it is pseudo y
                 y = self.data[splt]['y'][idx]
+                if task == "TAG_SRC" or task == "TAG_TGT" or task == "TAG_GAP":
+                    y_len = self.data[splt]['y_len'][idx]
 
                 # cuda
                 x, y, lengths, positions, langs = to_cuda(x, y, lengths, positions, langs)
@@ -300,7 +310,7 @@ class QE:
                             dico=self.data['dico'],
                             x=x[:, i].t(),
                             embeddings=embeddings[:, i, :],
-                            mode="average"
+                            mode="first"
                         )
 
                         # real length
@@ -308,22 +318,31 @@ class QE:
                         len_tgt = len(tgt)
 
                         if task == "TAG_SRC":
-                            y_list.append(y[i][:len_src])
+                            # assert (y_len[i] == len_src)
+                            y_list.append(y[i][:y_len[i]])
                             output = self.proj(src)
                             output = output.squeeze(1)
+                            if y_len[i] < len_src:
+                                output = output[:y_len[i]]
                             output_list.append(output)
                         elif task == "TAG_TGT":
+                            # assert (y_len[i] == len_tgt)
                             y_list.append(y[i][:len_tgt])
                             output = self.proj(tgt)
                             output = output.squeeze(1)
+                            if y_len[i] < len_tgt:
+                                output = output[:y_len[i]]
                             output_list.append(output)
                         elif task == "TAG_GAP":
+                            # assert (y_len[i] == len_tgt + 1)
                             y_list.append(y[i][:len_tgt + 1])
                             top_half = torch.cat([sep1.view(1, -1), tgt], 0)
                             bottom_half = torch.cat([tgt, sep2.view(1, -1)], 0)
                             input = torch.cat([top_half, bottom_half], 1)
                             output = self.proj(input)
                             output = output.squeeze(1)
+                            if y_len[i] < len_tgt + 1:
+                                output = output[:y_len[i]]
                             output_list.append(output)
 
                     y_list = torch.cat(y_list, 0)
@@ -372,12 +391,16 @@ class QE:
                     self.score_recorder.update('rmse', rmse)
                     self.score_recorder.update('mae', mae)
                 else:
+                    if not np.array_equal(gold, gold.astype(bool)):
+                        raise ValueError("gold is not 0/1")
+                    if not np.array_equal(pred, pred.astype(bool)):
+                        raise ValueError("pred is not 0/1")
                     mcc = matthews_corrcoef(y_true=gold, y_pred=pred)
                     acc = accuracy_score(y_true=gold, y_pred=pred)
-                    # f1 = f1_score(y_true=gold, y_pred=pred)
+                    f1 = f1_score(y_true=gold, y_pred=pred)
                     self.score_recorder.update('mcc', mcc)
                     self.score_recorder.update('acc', acc)
-                    # self.score_recorder.update('f1', f1)
+                    self.score_recorder.update('f1', f1)
 
             # print
             if splt == "dev":
@@ -388,7 +411,7 @@ class QE:
                 else:
                     logger.info("QE - %s - %s - Epoch %i - MCC: %.6f" % (task, splt, self.epoch, mcc))
                     logger.info("QE - %s - %s - Epoch %i - ACC: %.6f" % (task, splt, self.epoch, acc))
-                    # logger.info("QE - %s - %s - Epoch %i - F1: %.6f" % (task, splt, self.epoch, f1))
+                    logger.info("QE - %s - %s - Epoch %i - F1: %.6f" % (task, splt, self.epoch, f1))
             else:
                 logger.info("QE - %s - %s - Epoch %i - Finished" % (task, splt, self.epoch))
 
@@ -443,15 +466,22 @@ class QE:
                         whole_filename = whole_filename % (filename, splt, "gap_tags")
                     with open(os.path.join(dpath, whole_filename), 'r') as f:
                         labels = []
+                        y_len = []
                         for l in f:
                             labels.append([])
                             for token in l.rstrip().split(' '):
                                 labels[-1].append(int(token))
+                            y_len.append(len(labels[-1]))
                     labels = [torch.LongTensor(l) for l in labels]
-                    data[splt]['y'] = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=2)
+                    y_len = torch.LongTensor(y_len)
+                    # to cover error cases
+                    data[splt]['y'] = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=1)
+                    data[splt]['y_len'] = y_len
                     assert len(data[splt]['x']) == len(data[splt]['y'])
             else:
                 # pseudo y
                 data[splt]['y'] = data["train"]['y'][:len(data[splt]['x'])]
+                if task != "DA" and task != "HTER":
+                    data[splt]['y_len'] = data["train"]['y_len'][:len(data[splt]['x'])]
 
         return data

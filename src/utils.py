@@ -424,3 +424,18 @@ def get_embedding_per_token(dico, x, embeddings, mode="average"):
     tgt = torch.cat(tgt, 0)
 
     return cls, src, sep1, tgt, sep2
+
+
+def print_sentence(x, dico):
+    """
+    print a pytorch sentence
+    :param x:
+    :param dico:
+    :return:
+    """
+    sent = []
+    for token in x:
+        sent.append(dico.id2word[token.item()])
+
+    logger = getLogger()
+    logger.info(" ".join(sent))
