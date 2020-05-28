@@ -18,6 +18,7 @@ TOKENIZE=$TOOLS_PATH/tokenize.sh
 LOWER_REMOVE_ACCENT=$TOOLS_PATH/lowercase_and_remove_accent.py
 FASTBPE=$TOOLS_PATH/fastBPE/fast
 CUT_GAP=$TOOLS_PATH/cut_word_gap_labels.py
+PSEUDO_DATA=$TOOLS_PATH/create_pseudo_y.py
 
 
 # install tools
@@ -80,6 +81,8 @@ for i in $(seq 0 1); do
     # Cut out label
     sed '1d' "$TASK1_PATH/$lg1-$lg2/train.$lg1$lg2.df.short.tsv" | cut -f7 > "$TASK1_OUTPATH/$lg1-$lg2.train.label"
     sed '1d' "$TASK1_PATH/$lg1-$lg2/dev.$lg1$lg2.df.short.tsv" | cut -f7 > "$TASK1_OUTPATH/$lg1-$lg2.dev.label"
+    python $PSEUDO_DATA --s1 "$TASK1_OUTPATH/$lg1-$lg2.test.s1" --s2 "$TASK1_OUTPATH/$lg1-$lg2.test.s2" \
+        --type "DA" --name "$lg1-$lg2" --output "$TASK1_OUTPATH"
 
     # Clean
     rm -rf "$TASK1_OUTPATH"/*.tok
@@ -96,34 +99,44 @@ for i in $(seq 0 1); do
     then
         cat "$TASK2_PATH/$lg1-$lg2/train/train.src" | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.train.s1.tok"
         cat "$TASK2_PATH/$lg1-$lg2/dev/dev.src" | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.dev.s1.tok"
+        cat "$TASK2_PATH/$lg1-$lg2/test/test.src" | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.test.s1.tok"
     else
         cat "$TASK2_PATH/$lg1-$lg2/train/train.src" | $TOKENIZE $lg1 | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.train.s1.tok"
         cat "$TASK2_PATH/$lg1-$lg2/dev/dev.src" | $TOKENIZE $lg1 | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.dev.s1.tok"
+        cat "$TASK2_PATH/$lg1-$lg2/test/test.src" | $TOKENIZE $lg1 | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.test.s1.tok"
     fi
     # Apple BPE and preprocess
     $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.train.s1" "$TASK2_OUTPATH/$lg1-$lg2.train.s1.tok" $CODES_PATH
     python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.train.s1"
     $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.dev.s1" "$TASK2_OUTPATH/$lg1-$lg2.dev.s1.tok" $CODES_PATH
     python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.dev.s1"
+    $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.test.s1" "$TASK2_OUTPATH/$lg1-$lg2.test.s1.tok" $CODES_PATH
+    python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.test.s1"
 
     # TOKENIZE translation sentence
     if [ $lg2 == "en" ]
     then
         cat "$TASK2_PATH/$lg1-$lg2/train/train.mt" | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.train.s2.tok"
         cat "$TASK2_PATH/$lg1-$lg2/dev/dev.mt" | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.dev.s2.tok"
+        cat "$TASK2_PATH/$lg1-$lg2/test/test.mt" | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.test.s2.tok"
     else
         cat "$TASK2_PATH/$lg1-$lg2/train/train.mt" | $TOKENIZE $lg2 | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.train.s2.tok"
         cat "$TASK2_PATH/$lg1-$lg2/dev/dev.mt" | $TOKENIZE $lg2 | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.dev.s2.tok"
+        cat "$TASK2_PATH/$lg1-$lg2/test/test.mt" | $TOKENIZE $lg2 | python $LOWER_REMOVE_ACCENT > "$TASK2_OUTPATH/$lg1-$lg2.test.s2.tok"
     fi
     # Apple BPE and preprocess
     $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.train.s2" "$TASK2_OUTPATH/$lg1-$lg2.train.s2.tok" $CODES_PATH
     python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.train.s2"
     $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.dev.s2" "$TASK2_OUTPATH/$lg1-$lg2.dev.s2.tok" $CODES_PATH
     python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.dev.s2"
+    $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.test.s2" "$TASK2_OUTPATH/$lg1-$lg2.test.s2.tok" $CODES_PATH
+    python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.test.s2"
 
     # Parse Label
     cp "$TASK2_PATH/$lg1-$lg2/train/train.hter" "$TASK2_OUTPATH/$lg1-$lg2.train.label"
     cp "$TASK2_PATH/$lg1-$lg2/dev/dev.hter" "$TASK2_OUTPATH/$lg1-$lg2.dev.label"
+    python $PSEUDO_DATA --s1 "$TASK2_PATH/$lg1-$lg2/test/test.src" --s2 "$TASK2_PATH/$lg1-$lg2/test/test.mt" \
+        --type "HTER" --name "$lg1-$lg2" --output "$TASK2_OUTPATH"
     python $CUT_GAP --input "$TASK2_PATH/$lg1-$lg2/train/train.source_tags" \
         --word_output "$TASK2_OUTPATH/$lg1-$lg2.train.src_tags.label"
     python $CUT_GAP --input "$TASK2_PATH/$lg1-$lg2/dev/dev.source_tags" \
@@ -134,6 +147,8 @@ for i in $(seq 0 1); do
     python $CUT_GAP --input "$TASK2_PATH/$lg1-$lg2/dev/dev.tags" --cut \
         --word_output "$TASK2_OUTPATH/$lg1-$lg2.dev.tgt_tags.label" \
         --gap_output "$TASK2_OUTPATH/$lg1-$lg2.dev.gap_tags.label"
+    python $PSEUDO_DATA --s1 "$TASK2_PATH/$lg1-$lg2/test/test.src" --s2 "$TASK2_PATH/$lg1-$lg2/test/test.mt" \
+        --type "TAG" --name "$lg1-$lg2" --output "$TASK2_OUTPATH"
 
     # Clean
     rm -rf "$TASK2_OUTPATH"/*.tok

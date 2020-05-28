@@ -450,38 +450,32 @@ class QE:
             )
 
             # load labels
-            if splt != "test":
-                if task == "DA" or task == "HTER":
-                    with open(os.path.join(dpath, '%s.%s.label' % (filename, splt)), 'r') as f:
-                        labels = [float(l.rstrip()) for l in f]
-                    data[splt]['y'] = torch.FloatTensor(labels)
-                    assert len(data[splt]['x']) == len(data[splt]['y'])
-                else:
-                    whole_filename = "%s.%s.%s.label"
-                    if task == "TAG_SRC":
-                        whole_filename = whole_filename % (filename, splt, "src_tags")
-                    elif task == "TAG_TGT":
-                        whole_filename = whole_filename % (filename, splt, "tgt_tags")
-                    elif task == "TAG_GAP":
-                        whole_filename = whole_filename % (filename, splt, "gap_tags")
-                    with open(os.path.join(dpath, whole_filename), 'r') as f:
-                        labels = []
-                        y_len = []
-                        for l in f:
-                            labels.append([])
-                            for token in l.rstrip().split(' '):
-                                labels[-1].append(int(token))
-                            y_len.append(len(labels[-1]))
-                    labels = [torch.LongTensor(l) for l in labels]
-                    y_len = torch.LongTensor(y_len)
-                    # to cover error cases
-                    data[splt]['y'] = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=1)
-                    data[splt]['y_len'] = y_len
-                    assert len(data[splt]['x']) == len(data[splt]['y'])
+            if task == "DA" or task == "HTER":
+                with open(os.path.join(dpath, '%s.%s.label' % (filename, splt)), 'r') as f:
+                    labels = [float(l.rstrip()) for l in f]
+                data[splt]['y'] = torch.FloatTensor(labels)
+                assert len(data[splt]['x']) == len(data[splt]['y'])
             else:
-                # pseudo y
-                data[splt]['y'] = data["train"]['y'][:len(data[splt]['x'])]
-                if task != "DA" and task != "HTER":
-                    data[splt]['y_len'] = data["train"]['y_len'][:len(data[splt]['x'])]
+                whole_filename = "%s.%s.%s.label"
+                if task == "TAG_SRC":
+                    whole_filename = whole_filename % (filename, splt, "src_tags")
+                elif task == "TAG_TGT":
+                    whole_filename = whole_filename % (filename, splt, "tgt_tags")
+                elif task == "TAG_GAP":
+                    whole_filename = whole_filename % (filename, splt, "gap_tags")
+                with open(os.path.join(dpath, whole_filename), 'r') as f:
+                    labels = []
+                    y_len = []
+                    for l in f:
+                        labels.append([])
+                        for token in l.rstrip().split(' '):
+                            labels[-1].append(int(token))
+                        y_len.append(len(labels[-1]))
+                labels = [torch.LongTensor(l) for l in labels]
+                y_len = torch.LongTensor(y_len)
+                # to cover error cases
+                data[splt]['y'] = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=1)
+                data[splt]['y_len'] = y_len
+                assert len(data[splt]['x']) == len(data[splt]['y'])
 
         return data
