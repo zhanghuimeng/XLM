@@ -27,19 +27,19 @@ if args.type == "DA" or args.type == "HTER":
             f.write("%f\n" % 0.5)
 elif args.type == "TAG":
     l = len(s1)
-    with open(os.path.join(args.output, "%s.test.src_tags" % args.name), "w") as f:
+    with open(os.path.join(args.output, "%s.test.src_tags.label" % args.name), "w") as f:
         for i in range(l):
             a = ["1"] * len(s1[i].split())
             f.write("%s\n" % " ".join(a))
 
     l = len(s2)
-    with open(os.path.join(args.output, "%s.test.tgt_tags" % args.name), "w") as f:
+    with open(os.path.join(args.output, "%s.test.tgt_tags.label" % args.name), "w") as f:
         for i in range(l):
             a = ["1"] * len(s2[i].split())
             f.write("%s\n" % " ".join(a))
 
     l = len(s2)
-    with open(os.path.join(args.output, "%s.test.gap_tags" % args.name), "w") as f:
+    with open(os.path.join(args.output, "%s.test.gap_tags.label" % args.name), "w") as f:
         for i in range(l):
             a = ["1"] * (len(s2[i].split()) + 1)
             f.write("%s\n" % " ".join(a))

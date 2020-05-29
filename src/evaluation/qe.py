@@ -170,7 +170,8 @@ class QE:
             )
             y = self.data['train']['y'][idx]
             if task == "TAG_SRC" or task == "TAG_TGT" or task == "TAG_GAP":
-                y_len = self.data['train']['y_len'][idx]
+                s1_mark = self.data['train']['s1_mark'][idx]
+                s2_mark = self.data['train']['s2_mark'][idx]
             bs = len(len1)
 
             # cuda
@@ -193,8 +194,9 @@ class QE:
                 for i in range(bs):
                     # def get_embedding_per_token(): return cls, source, sep, target, sep
                     cls, src, sep1, tgt, sep2 = get_embedding_per_token(
-                        dico=self.data['dico'],
                         x=x[:,i].t(),
+                        s1_mark=s1_mark[i],
+                        s2_mark=s2_mark[i],
                         embeddings=embeddings[:,i,:],
                         mode="first"
                     )
@@ -203,23 +205,25 @@ class QE:
                     len_src = len(src)
                     len_tgt = len(tgt)
 
+                    # logger.info("Real s1 len=%d, calc len=%d" % (sum(s1_mark[i]), len_src))
+                    # logger.info("Real s2 len=%d, calc len=%d" % (sum(s2_mark[i]), len_tgt))
+                    assert sum(s1_mark[i]) == len_src
+                    assert sum(s2_mark[i]) == len_tgt
+
                     if task == "TAG_SRC":
                         # if y_len[i] != len_src:
                         #     logger.info("real len=%d, calc len=%d" % (y_len[i], len_src))
                         #     print_sentence(x=x[:,i].t(), dico=self.data['dico'])
-                        # assert (y_len[i] == len_src)
                         y_list.append(y[i][:len_src])
                         output = self.proj(src)
                         output = output.squeeze(1)
                         output_list.append(output)
                     elif task == "TAG_TGT":
-                        # assert (y_len[i] == len_tgt)
                         y_list.append(y[i][:len_tgt])
                         output = self.proj(tgt)
                         output = output.squeeze(1)
                         output_list.append(output)
                     elif task == "TAG_GAP":
-                        # assert (y_len[i] == len_tgt + 1)
                         y_list.append(y[i][:len_tgt + 1])
                         top_half = torch.cat([sep1.view(1, -1), tgt], 0)
                         bottom_half = torch.cat([tgt, sep2.view(1, -1)], 0)
@@ -288,7 +292,8 @@ class QE:
                 # for y == "test", it is pseudo y
                 y = self.data[splt]['y'][idx]
                 if task == "TAG_SRC" or task == "TAG_TGT" or task == "TAG_GAP":
-                    y_len = self.data[splt]['y_len'][idx]
+                    s1_mark = self.data[splt]['s1_mark'][idx]
+                    s2_mark = self.data[splt]['s2_mark'][idx]
 
                 # cuda
                 x, y, lengths, positions, langs = to_cuda(x, y, lengths, positions, langs)
@@ -307,8 +312,9 @@ class QE:
                     for i in range(bs):
                         # def get_embedding_per_token(): return cls, source, sep, target, sep
                         cls, src, sep1, tgt, sep2 = get_embedding_per_token(
-                            dico=self.data['dico'],
                             x=x[:, i].t(),
+                            s1_mark=s1_mark[i],
+                            s2_mark=s2_mark[i],
                             embeddings=embeddings[:, i, :],
                             mode="first"
                         )
@@ -316,33 +322,28 @@ class QE:
                         # real length
                         len_src = len(src)
                         len_tgt = len(tgt)
+                        # logger.info("Real s1 len=%d, calc len=%d" % (sum(s1_mark[i]), len_src))
+                        # logger.info("Real s2 len=%d, calc len=%d" % (sum(s2_mark[i]), len_tgt))
+                        assert sum(s1_mark[i]) == len_src
+                        assert sum(s2_mark[i]) == len_tgt
 
                         if task == "TAG_SRC":
-                            # assert (y_len[i] == len_src)
-                            y_list.append(y[i][:y_len[i]])
+                            y_list.append(y[i][:len_src])
                             output = self.proj(src)
                             output = output.squeeze(1)
-                            if y_len[i] < len_src:
-                                output = output[:y_len[i]]
                             output_list.append(output)
                         elif task == "TAG_TGT":
-                            # assert (y_len[i] == len_tgt)
                             y_list.append(y[i][:len_tgt])
                             output = self.proj(tgt)
                             output = output.squeeze(1)
-                            if y_len[i] < len_tgt:
-                                output = output[:y_len[i]]
                             output_list.append(output)
                         elif task == "TAG_GAP":
-                            # assert (y_len[i] == len_tgt + 1)
                             y_list.append(y[i][:len_tgt + 1])
                             top_half = torch.cat([sep1.view(1, -1), tgt], 0)
                             bottom_half = torch.cat([tgt, sep2.view(1, -1)], 0)
                             input = torch.cat([top_half, bottom_half], 1)
                             output = self.proj(input)
                             output = output.squeeze(1)
-                            if y_len[i] < len_tgt + 1:
-                                output = output[:y_len[i]]
                             output_list.append(output)
 
                     y_list = torch.cat(y_list, 0)
@@ -463,19 +464,24 @@ class QE:
                     whole_filename = whole_filename % (filename, splt, "tgt_tags")
                 elif task == "TAG_GAP":
                     whole_filename = whole_filename % (filename, splt, "gap_tags")
-                with open(os.path.join(dpath, whole_filename), 'r') as f:
-                    labels = []
-                    y_len = []
-                    for l in f:
-                        labels.append([])
-                        for token in l.rstrip().split(' '):
-                            labels[-1].append(int(token))
-                        y_len.append(len(labels[-1]))
-                labels = [torch.LongTensor(l) for l in labels]
-                y_len = torch.LongTensor(y_len)
-                # to cover error cases
-                data[splt]['y'] = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=1)
-                data[splt]['y_len'] = y_len
+
+                def read_varlen_file(filename):
+                    with open(filename, "r") as f:
+                        labels = []
+                        for line in f:
+                            labels.append([])
+                            for token in line.rstrip().split(' '):
+                                labels[-1].append(int(token))
+                    labels = [torch.LongTensor(l) for l in labels]
+                    return torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=0)
+
+                # read the gap labels
+                data[splt]['y'] = read_varlen_file(os.path.join(dpath, whole_filename))
+
+                # read s1 and s2 range markers
+                data[splt]['s1_mark'] = read_varlen_file(os.path.join(dpath, "%s.%s.s1.bperange" % (filename, splt)))
+                data[splt]['s2_mark'] = read_varlen_file(os.path.join(dpath, "%s.%s.s2.bperange" % (filename, splt)))
+
                 assert len(data[splt]['x']) == len(data[splt]['y'])
 
         return data

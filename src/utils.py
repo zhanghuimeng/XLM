@@ -343,10 +343,12 @@ def find_modules(module, module_name, module_instance, found):
             find_modules(child, name, module_instance, found)
 
 
-def get_embedding_per_token(dico, x, embeddings, mode="average"):
+def get_embedding_per_token(x, s1_mark, s2_mark, embeddings, mode="average"):
     """
     Return the average feature of each whole word
-    :param dico: The dictionary, has id2word feature
+    :param x: input sentence
+    :param s1_mark: the bpe marks of s1
+    :param s2_mark: the bpe marks of s2
     :param embeddings: The embedding of a line
     :param mode: average or first
     :return: cls, source, sep, target, sep
@@ -364,34 +366,31 @@ def get_embedding_per_token(dico, x, embeddings, mode="average"):
 
     slen, _ = embeddings.size()
     step = 0
-    in_word_piece = False
+    s_idx = 0
     for i in range(slen):
         if step == 0:
             cls = embeddings[i]
             step += 1
+            s_idx = 0
         elif step == 1:
             if x[i] == 1:
                 sep1 = embeddings[i]
                 step += 1
-                in_word_piece = False
+                s_idx = 0
                 continue
-            if not in_word_piece:
-                in_word_piece = True
+            if s1_mark[s_idx] == 1:
                 src.append([])
             src[-1].append(embeddings[i].view(1, -1))
-            if not "@@" in dico.id2word[x[i].item()]:
-                in_word_piece = False
+            s_idx += 1
         elif step == 2:
             if x[i] == 1:
                 sep2 = embeddings[i]
                 step += 1
                 continue
-            if not in_word_piece:
-                in_word_piece = True
+            if s2_mark[s_idx] == 1:
                 tgt.append([])
             tgt[-1].append(embeddings[i].view(1, -1))
-            if not "@@" in dico.id2word[x[i].item()]:
-                in_word_piece = False
+            s_idx += 1
         elif step == 3:
             pass
 
