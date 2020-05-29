@@ -19,7 +19,7 @@ LOWER_REMOVE_ACCENT=$TOOLS_PATH/lowercase_and_remove_accent.py
 FASTBPE=$TOOLS_PATH/fastBPE/fast
 CUT_GAP=$TOOLS_PATH/cut_word_gap_labels.py
 PSEUDO_DATA=$TOOLS_PATH/create_pseudo_y.py
-
+MARK=$TOOLS_PATH/mark_word_piece.py
 
 # install tools
 ./install-tools.sh
@@ -112,6 +112,10 @@ for i in $(seq 0 1); do
     python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.dev.s1"
     $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.test.s1" "$TASK2_OUTPATH/$lg1-$lg2.test.s1.tok" $CODES_PATH
     python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.test.s1"
+    # Mark wordpiece ranges
+    python $MARK --input "$TASK2_OUTPATH/$lg1-$lg2.train.s1" --output "$TASK2_OUTPATH/$lg1-$lg2.train.s1.bperange"
+    python $MARK --input "$TASK2_OUTPATH/$lg1-$lg2.dev.s1" --output "$TASK2_OUTPATH/$lg1-$lg2.dev.s1.bperange"
+    python $MARK --input "$TASK2_OUTPATH/$lg1-$lg2.test.s1" --output "$TASK2_OUTPATH/$lg1-$lg2.test.s1.bperange"
 
     # TOKENIZE translation sentence
     if [ $lg2 == "en" ]
@@ -131,6 +135,10 @@ for i in $(seq 0 1); do
     python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.dev.s2"
     $FASTBPE applybpe "$TASK2_OUTPATH/$lg1-$lg2.test.s2" "$TASK2_OUTPATH/$lg1-$lg2.test.s2.tok" $CODES_PATH
     python preprocess.py $VOCAB_PATH "$TASK2_OUTPATH/$lg1-$lg2.test.s2"
+    # Mark wordpiece ranges
+    python $MARK --input "$TASK2_OUTPATH/$lg1-$lg2.train.s2" --output "$TASK2_OUTPATH/$lg1-$lg2.train.s2.bperange"
+    python $MARK --input "$TASK2_OUTPATH/$lg1-$lg2.dev.s2" --output "$TASK2_OUTPATH/$lg1-$lg2.dev.s2.bperange"
+    python $MARK --input "$TASK2_OUTPATH/$lg1-$lg2.test.s2" --output "$TASK2_OUTPATH/$lg1-$lg2.test.s2.bperange"
 
     # Parse Label
     cp "$TASK2_PATH/$lg1-$lg2/train/train.hter" "$TASK2_OUTPATH/$lg1-$lg2.train.label"
