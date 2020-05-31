@@ -80,11 +80,22 @@ class QE:
         self.embedder.cuda()
 
         if task == "DA" or task == "HTER":
-            # projection layer
-            self.proj = nn.Sequential(*[
-                nn.Dropout(params.dropout),
-                nn.Linear(self.embedder.out_dim, 1)
-            ]).cuda()
+            if params.lstm:
+                self.lstm = nn.LSTM(
+                    input_size=self.embedder.out_dim,
+                    hidden_size=self.embedder.out_dim,
+                    bidirectional=True).cuda()
+                # projection layer
+                self.proj = nn.Sequential(*[
+                    nn.Dropout(params.dropout),
+                    nn.Linear(2 * self.embedder.out_dim, 1)
+                ]).cuda()
+            else:
+                # projection layer
+                self.proj = nn.Sequential(*[
+                    nn.Dropout(params.dropout),
+                    nn.Linear(self.embedder.out_dim, 1)
+                ]).cuda()
         elif task == "TAG_SRC":
             # source projection layer
             self.proj = nn.Sequential(*[
@@ -140,6 +151,8 @@ class QE:
         params = self.params
         self.embedder.train()
         self.proj.train()
+        if params.lstm:
+            self.lstm.train()
 
         # training variables
         losses = []
@@ -179,9 +192,26 @@ class QE:
 
             # loss
             if task == "DA" or task == "HTER":
-                output = self.proj(self.embedder.get_embeddings(x, lengths, positions, langs))
-                output = output.squeeze(1)
-                loss = F.mse_loss(output, y.float())
+                if params.lstm:
+                    embeddings = self.embedder.get_all_embeddings(x, lengths, positions, langs)
+                    slen, bs, _ = embeddings.size()
+                    output_list = []
+                    for i in range(bs):
+                        sent_len = lengths[i]
+                        lstm_input = embeddings[:sent_len:,i,:]
+                        # logger.info(sent_len)
+                        # logger.info(lstm_input)
+                        _, hidden = self.lstm(lstm_input.view(sent_len, 1, -1))
+                        hidden = torch.reshape(hidden[0], (1, -1))
+                        output_list.append(hidden)
+                    output = torch.cat(output_list, 0)
+                    output = self.proj(output)
+                    output = output.squeeze(1)
+                    loss = F.mse_loss(output, y.float())
+                else:
+                    output = self.proj(self.embedder.get_embeddings(x, lengths, positions, langs))
+                    output = output.squeeze(1)
+                    loss = F.mse_loss(output, y.float())
             else:
                 embeddings = self.embedder.get_all_embeddings(x, lengths, positions, langs)
                 slen, bs, _ = embeddings.size()
@@ -300,8 +330,22 @@ class QE:
 
                 # forward
                 if task == "DA" or task == "HTER":
-                    output = self.proj(self.embedder.get_embeddings(x, lengths, positions, langs))
-                    predictions = output.squeeze(1)
+                    if params.lstm:
+                        embeddings = self.embedder.get_all_embeddings(x, lengths, positions, langs)
+                        slen, bs, _ = embeddings.size()
+                        output_list = []
+                        for i in range(bs):
+                            sent_len = lengths[i]
+                            lstm_input = embeddings[:sent_len:, i, :]
+                            _, hidden = self.lstm(lstm_input.view(sent_len, 1, -1))
+                            hidden = torch.reshape(hidden[0], (1, -1))
+                            output_list.append(hidden)
+                        output = torch.cat(output_list, 0)
+                        output = self.proj(output)
+                        predictions = output.squeeze(1)
+                    else:
+                        output = self.proj(self.embedder.get_embeddings(x, lengths, positions, langs))
+                        predictions = output.squeeze(1)
                 else:
                     # copied from train()
                     embeddings = self.embedder.get_all_embeddings(x, lengths, positions, langs)
