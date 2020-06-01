@@ -73,7 +73,7 @@ class QE:
         if task == "DA" or task == "HTER":
             self.score_recorder = ScoreRecorder(['pearson', 'rmse', 'mae'], 'pearson', params.patience)
         else:
-            self.score_recorder = ScoreRecorder(['mcc', 'acc', 'f1'], 'mcc', params.patience)
+            self.score_recorder = ScoreRecorder(['mcc', 'acc', 'f1_bad', 'f1_ok'], 'mcc', params.patience)
 
         # embedder
         self.embedder = copy.deepcopy(self._embedder)
@@ -442,10 +442,11 @@ class QE:
                         raise ValueError("pred is not 0/1")
                     mcc = matthews_corrcoef(y_true=gold, y_pred=pred)
                     acc = accuracy_score(y_true=gold, y_pred=pred)
-                    f1 = f1_score(y_true=gold, y_pred=pred)
+                    f1_bad, f1_ok = f1_score(y_true=gold, y_pred=pred, average=None)
                     self.score_recorder.update('mcc', mcc)
                     self.score_recorder.update('acc', acc)
-                    self.score_recorder.update('f1', f1)
+                    self.score_recorder.update('f1_bad', f1_bad)
+                    self.score_recorder.update('f1_ok', f1_ok)
 
             # print
             if splt == "dev":
@@ -456,7 +457,8 @@ class QE:
                 else:
                     logger.info("QE - %s - %s - Epoch %i - MCC: %.6f" % (task, splt, self.epoch, mcc))
                     logger.info("QE - %s - %s - Epoch %i - ACC: %.6f" % (task, splt, self.epoch, acc))
-                    logger.info("QE - %s - %s - Epoch %i - F1: %.6f" % (task, splt, self.epoch, f1))
+                    logger.info("QE - %s - %s - Epoch %i - F1_bad: %.6f" % (task, splt, self.epoch, f1_bad))
+                    logger.info("QE - %s - %s - Epoch %i - F1_ok: %.6f" % (task, splt, self.epoch, f1_ok))
             else:
                 logger.info("QE - %s - %s - Epoch %i - Finished" % (task, splt, self.epoch))
 
